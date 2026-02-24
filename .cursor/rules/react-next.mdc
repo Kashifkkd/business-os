@@ -1,0 +1,13 @@
+---
+description: React and Next.js App Router patterns
+globs: **/*.tsx
+alwaysApply: false
+---
+
+# React & Next.js Patterns
+
+- Use functional components and hooks; keep components focused and small.
+- Prefer Server Components by default; add `"use client"` only for state, event handlers, or browser APIs.
+- Use `next/link` and `next/navigation` (e.g. `useRouter`, `redirect`) for navigation; avoid full-page reloads.
+- Forms: control inputs with React state; use Supabase client from `@/lib/supabase/client` in client components; call server actions or route handlers for mutations when appropriate.
+- Colocate component-specific logic in the same file or a sibling hook; shared logic in `lib/` or `hooks/`.

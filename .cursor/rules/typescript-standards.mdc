@@ -1,0 +1,21 @@
+---
+description: TypeScript conventions
+globs: **/*.ts
+alwaysApply: false
+---
+
+# TypeScript Standards
+
+- Prefer `interface` for object shapes; use `type` for unions/intersections/aliases.
+- Use shared types from `@/lib/supabase/types` for DB-backed entities (Profile, Tenant, TenantMember, etc.); keep API/component props typed explicitly.
+- Avoid `any`; use `unknown` and narrow, or proper types.
+- Prefer `async/await` over raw Promises; surface errors (throw or return result objects) instead of swallowing.
+
+```typescript
+// Prefer
+const data = await getTenant(slug);
+if (!data) throw new Error("Tenant not found");
+
+// Avoid
+getTenant(slug).then((d) => { ... }).catch(() => {});
+```

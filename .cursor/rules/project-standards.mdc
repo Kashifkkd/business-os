@@ -1,0 +1,13 @@
+---
+description: Core project standards and conventions
+alwaysApply: true
+---
+
+# Business OS – Project Standards
+
+- **Stack**: Next.js 16 (App Router), React 19, TypeScript, Supabase, Tailwind CSS.
+- **Paths**: Use `@/` for project imports (e.g. `@/lib/supabase/client`, `@/components/ui/button`).
+- **Data**: Prefer Server Components and server-side data fetching; use client components only when needed (forms, interactivity).
+- **Auth & tenants**: Auth via Supabase; multi-tenant by `[industry]/[tenantSlug]`. Always scope data by tenant when applicable.
+- **DB changes**: Add Supabase migrations in `supabase/migrations/` with descriptive names; keep schema in sync with `lib/supabase/types.ts`.
+- **UI**: Use existing `@/components/ui` (shadcn-style) components; keep styling in Tailwind, avoid one-off CSS unless necessary.

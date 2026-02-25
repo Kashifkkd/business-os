@@ -3,6 +3,9 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { ArrowLeft, Save, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -32,6 +35,34 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 const FOOD_TYPE_OPTIONS = ["veg", "non_veg"] as const;
 
+const menuItemFormSchema = z.object({
+  name: z.string().min(1, "Menu name is required").trim(),
+  description: z.string().optional(),
+  long_description: z.string().optional(),
+  images: z.array(z.string()),
+  sub_category_id: z.string().optional(),
+  food_type: z.enum(["veg", "non_veg"]),
+  sku: z.string().optional(),
+  stock_quantity: z.string().optional(),
+  minimum_stock: z.string().optional(),
+  price: z
+    .string()
+    .min(1, "Price is required")
+    .refine(
+      (s) => {
+        const n = parseFloat(s);
+        return !Number.isNaN(n) && n > 0;
+      },
+      { message: "Price must be greater than 0" }
+    ),
+  minimum_order: z.string().optional(),
+  selectedDiscountId: z.string().optional(),
+  customSellPrice: z.boolean().optional(),
+  customSellPriceValue: z.string().optional(),
+});
+
+export type MenuItemFormValues = z.infer<typeof menuItemFormSchema>;
+
 /** Compute sell price from original price and selected discount (for display only; discount not stored on item). */
 function computeSellPrice(
   originalPrice: number,
@@ -47,6 +78,31 @@ function computeSellPrice(
   return Math.max(0, originalPrice - d.value);
 }
 
+function getDefaultValues(initialItem?: MenuItem | null): MenuItemFormValues {
+  return {
+    name: initialItem?.name ?? "",
+    description: initialItem?.description ?? "",
+    long_description: initialItem?.long_description ?? "",
+    images: initialItem?.images ?? [],
+    sub_category_id: initialItem?.sub_category_id ?? "",
+    food_type: initialItem?.food_type === "non_veg" ? "non_veg" : "veg",
+    sku: initialItem?.sku ?? "",
+    stock_quantity:
+      initialItem?.stock_quantity != null ? String(initialItem.stock_quantity) : "",
+    minimum_stock:
+      initialItem?.minimum_stock != null ? String(initialItem.minimum_stock) : "",
+    price: initialItem?.price != null ? String(initialItem.price) : "",
+    minimum_order:
+      initialItem?.minimum_order != null ? String(initialItem.minimum_order) : "1",
+    selectedDiscountId: "",
+    customSellPrice: false,
+    customSellPriceValue:
+      initialItem?.discounted_price != null
+        ? String(initialItem.discounted_price)
+        : "",
+  };
+}
+
 export interface AddMenuFormProps {
   orgId: string;
   /** When set, form is in edit mode. */
@@ -59,130 +115,59 @@ export function AddMenuForm({ orgId, initialItem }: AddMenuFormProps) {
   const createItem = useCreateMenuItem(orgId);
   const updateItem = useUpdateMenuItem(orgId, initialItem?.id ?? "");
   const { data: categories = [] } = useMenuCategory(orgId);
-  const { data: allSubs = [] } = useMenuSubcategoriesList(orgId, { categoryId: undefined });
+  const { data: allSubs = [] } = useMenuSubcategoriesList(orgId, {
+    categoryId: undefined,
+  });
   const [categoryId, setCategoryId] = useState("");
-  const { data: subcategories = [] } = useMenuSubCategory(orgId, categoryId || undefined);
+  const { data: subcategories = [] } = useMenuSubCategory(
+    orgId,
+    categoryId || undefined
+  );
   const { data: discounts = [] } = useMenuDiscounts(orgId);
-  const activeDiscounts = useMemo(() => discounts.filter((d) => d.is_active), [discounts]);
+  const activeDiscounts = useMemo(
+    () => discounts.filter((d) => d.is_active),
+    [discounts]
+  );
 
-  // In edit mode, set initial categoryId from item's sub_category_id when allSubs has loaded (defer to avoid sync setState in effect)
+  const form = useForm<MenuItemFormValues>({
+    resolver: zodResolver(menuItemFormSchema),
+    defaultValues: getDefaultValues(initialItem),
+  });
+
+  const { watch, setValue, formState, reset, handleSubmit: rhfHandleSubmit } = form;
+  const isDirty = formState.isDirty;
+  const isSaving = createItem.isPending || updateItem.isPending;
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const [pendingLeaveHref, setPendingLeaveHref] = useState<string | null>(null);
+
+  // In edit mode, set categoryId from item's sub_category_id when allSubs has loaded
   useEffect(() => {
     if (!initialItem?.sub_category_id || !allSubs.length) return;
-    const catId = allSubs.find((s) => s.id === initialItem.sub_category_id)?.category_id;
+    const catId = allSubs.find((s) => s.id === initialItem.sub_category_id)
+      ?.category_id;
     if (!catId) return;
     const t = setTimeout(() => setCategoryId(catId), 0);
     return () => clearTimeout(t);
   }, [initialItem?.sub_category_id, allSubs]);
 
-  const [name, setName] = useState(initialItem?.name ?? "");
-  const [description, setDescription] = useState(initialItem?.description ?? "");
-  const [menuDetails, setMenuDetails] = useState(initialItem?.long_description ?? "");
-  const [images, setImages] = useState<string[]>(initialItem?.images ?? []);
-  const [subCategoryId, setSubCategoryId] = useState(initialItem?.sub_category_id ?? "");
-  const [foodType, setFoodType] = useState<"veg" | "non_veg">(
-    initialItem?.food_type === "non_veg" ? "non_veg" : "veg"
-  );
-  const [sku, setSku] = useState(initialItem?.sku ?? "");
-  const [stockQuantity, setStockQuantity] = useState(
-    initialItem?.stock_quantity != null ? String(initialItem.stock_quantity) : ""
-  );
-  const [minimumStock, setMinimumStock] = useState(
-    initialItem?.minimum_stock != null ? String(initialItem.minimum_stock) : ""
-  );
-  const [originalPrice, setOriginalPrice] = useState(
-    initialItem?.price != null ? String(initialItem.price) : ""
-  );
-  const [selectedDiscountId, setSelectedDiscountId] = useState<string>("");
-  const [customSellPrice, setCustomSellPrice] = useState(false);
-  const [customSellPriceValue, setCustomSellPriceValue] = useState(
-    initialItem?.discounted_price != null ? String(initialItem.discounted_price) : ""
-  );
-  const [minimumOrder, setMinimumOrder] = useState(
-    initialItem?.minimum_order != null ? String(initialItem.minimum_order) : "1"
-  );
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
-  const [pendingLeaveHref, setPendingLeaveHref] = useState<string | null>(null);
-
-  const originalPriceNum = parseFloat(originalPrice) || 0;
+  const priceStr = watch("price");
+  const selectedDiscountId = watch("selectedDiscountId");
+  const customSellPrice = watch("customSellPrice");
+  const customSellPriceValue = watch("customSellPriceValue");
+  const originalPriceNum = parseFloat(priceStr || "0") || 0;
   const computedSellPrice = useMemo(
-    () => computeSellPrice(originalPriceNum, selectedDiscountId || null, activeDiscounts),
+    () =>
+      computeSellPrice(
+        originalPriceNum,
+        selectedDiscountId || null,
+        activeDiscounts
+      ),
     [originalPriceNum, selectedDiscountId, activeDiscounts]
   );
-  const sellPriceNum = customSellPrice
-    ? parseFloat(customSellPriceValue) || 0
-    : computedSellPrice;
-  const displaySellPrice = customSellPrice ? customSellPriceValue : String(computedSellPrice);
-
-  const buildPayload = useCallback(
-    () => ({
-      name: name.trim(),
-      description: description.trim() || null,
-      long_description: menuDetails.trim() || null,
-      price: originalPriceNum,
-      discounted_price: sellPriceNum > 0 ? sellPriceNum : null,
-      sub_category_id: subCategoryId || null,
-      food_type: foodType,
-      images,
-      sku: sku.trim() || null,
-      stock_quantity: stockQuantity ? parseInt(stockQuantity, 10) : null,
-      minimum_stock: minimumStock ? parseInt(minimumStock, 10) : null,
-      minimum_order: minimumOrder ? Math.max(1, parseInt(minimumOrder, 10)) : 1,
-    }),
-    [
-      name,
-      description,
-      menuDetails,
-      originalPriceNum,
-      sellPriceNum,
-      subCategoryId,
-      foodType,
-      images,
-      sku,
-      stockQuantity,
-      minimumStock,
-      minimumOrder,
-    ]
-  );
-
-  const initialSnapshot = JSON.stringify({
-    name: initialItem?.name ?? "",
-    description: initialItem?.description ?? "",
-    menuDetails: initialItem?.long_description ?? "",
-    images: initialItem?.images ?? [],
-    subCategoryId: initialItem?.sub_category_id ?? "",
-    categoryId: "",
-    foodType: initialItem?.food_type === "non_veg" ? "non_veg" : "veg",
-    sku: initialItem?.sku ?? "",
-    stockQuantity: initialItem?.stock_quantity != null ? String(initialItem.stock_quantity) : "",
-    minimumStock: initialItem?.minimum_stock != null ? String(initialItem.minimum_stock) : "",
-    originalPrice: initialItem?.price != null ? String(initialItem.price) : "",
-    selectedDiscountId: "",
-    customSellPrice: false,
-    customSellPriceValue: initialItem?.discounted_price != null ? String(initialItem.discounted_price) : "",
-    minimumOrder: initialItem?.minimum_order != null ? String(initialItem.minimum_order) : "1",
-  });
-
-  const currentSnapshot = JSON.stringify({
-    name,
-    description,
-    menuDetails,
-    images,
-    subCategoryId,
-    categoryId,
-    foodType,
-    sku,
-    stockQuantity,
-    minimumStock,
-    originalPrice,
-    selectedDiscountId,
-    customSellPrice,
-    customSellPriceValue,
-    minimumOrder,
-  });
-
-  const isDirty = initialSnapshot !== currentSnapshot;
-  const isSaving = createItem.isPending || updateItem.isPending;
+  const displaySellPrice = customSellPrice
+    ? customSellPriceValue ?? ""
+    : String(computedSellPrice);
 
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -197,32 +182,59 @@ export function AddMenuForm({ orgId, initialItem }: AddMenuFormProps) {
     router.refresh();
   }, [orgId, router]);
 
-  const handleSave = async () => {
-    setSubmitError(null);
-    const nameTrim = name.trim();
-    if (!nameTrim) {
-      setSubmitError("Menu name is required.");
-      return;
-    }
-    const finalSell = sellPriceNum || originalPriceNum;
-    if (finalSell <= 0) {
-      setSubmitError("Price is required.");
-      return;
-    }
-    try {
-      const payload = buildPayload();
-      if (isEdit) {
-        await updateItem.mutateAsync(payload);
-      } else {
-        await createItem.mutateAsync(payload);
+  const onValidSubmit = useCallback(
+    async (values: MenuItemFormValues) => {
+      setSubmitError(null);
+      const priceNum = parseFloat(values.price) || 0;
+      const sellPrice =
+        values.customSellPrice && values.customSellPriceValue
+          ? parseFloat(values.customSellPriceValue) || 0
+          : computeSellPrice(
+              priceNum,
+              values.selectedDiscountId || null,
+              activeDiscounts
+            );
+      const finalSell = sellPrice || priceNum;
+      if (finalSell <= 0) {
+        setSubmitError("Price is required.");
+        return;
       }
-      goToList();
-    } catch (err) {
-      setSubmitError(
-        err instanceof Error ? err.message : "Failed to save menu item."
-      );
-    }
-  };
+      try {
+        const payload = {
+          name: values.name.trim(),
+          description: values.description?.trim() || null,
+          long_description: values.long_description?.trim() || null,
+          price: priceNum,
+          discounted_price: finalSell > 0 ? finalSell : null,
+          sub_category_id: values.sub_category_id || null,
+          food_type: values.food_type,
+          images: values.images,
+          sku: values.sku?.trim() || null,
+          stock_quantity: values.stock_quantity
+            ? parseInt(values.stock_quantity, 10)
+            : null,
+          minimum_stock: values.minimum_stock
+            ? parseInt(values.minimum_stock, 10)
+            : null,
+          minimum_order: Math.max(
+            1,
+            values.minimum_order ? parseInt(values.minimum_order, 10) : 1
+          ),
+        };
+        if (isEdit) {
+          await updateItem.mutateAsync(payload);
+        } else {
+          await createItem.mutateAsync(payload);
+        }
+        goToList();
+      } catch (err) {
+        setSubmitError(
+          err instanceof Error ? err.message : "Failed to save menu item."
+        );
+      }
+    },
+    [activeDiscounts, isEdit, updateItem, createItem, goToList]
+  );
 
   const handleDiscard = () => {
     if (isDirty) {
@@ -244,28 +256,10 @@ export function AddMenuForm({ orgId, initialItem }: AddMenuFormProps) {
   const confirmLeave = () => {
     if (pendingLeaveHref === "discard") {
       if (initialItem) {
-        setName(initialItem.name ?? "");
-        setDescription(initialItem.description ?? "");
-        setMenuDetails(initialItem.long_description ?? "");
-        setImages(initialItem.images ?? []);
-        setSubCategoryId(initialItem.sub_category_id ?? "");
-        setCategoryId(allSubs.find((s) => s.id === initialItem.sub_category_id)?.category_id ?? "");
-        setFoodType(initialItem.food_type === "non_veg" ? "non_veg" : "veg");
-        setSku(initialItem.sku ?? "");
-        setStockQuantity(
-          initialItem.stock_quantity != null ? String(initialItem.stock_quantity) : ""
-        );
-        setMinimumStock(
-          initialItem.minimum_stock != null ? String(initialItem.minimum_stock) : ""
-        );
-        setOriginalPrice(initialItem.price != null ? String(initialItem.price) : "");
-        setSelectedDiscountId("");
-        setCustomSellPrice(false);
-        setCustomSellPriceValue(
-          initialItem.discounted_price != null ? String(initialItem.discounted_price) : ""
-        );
-        setMinimumOrder(
-          initialItem.minimum_order != null ? String(initialItem.minimum_order) : "1"
+        reset(getDefaultValues(initialItem));
+        setCategoryId(
+          allSubs.find((s) => s.id === initialItem.sub_category_id)?.category_id ??
+            ""
         );
       } else {
         goToList();
@@ -303,9 +297,13 @@ export function AddMenuForm({ orgId, initialItem }: AddMenuFormProps) {
 
       <ScrollArea>
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-6xl space-y-4 px-2 py-4">
+          <form
+            id="menu-item-form"
+            onSubmit={rhfHandleSubmit(onValidSubmit)}
+            className="mx-auto max-w-6xl space-y-4 px-2 py-4"
+          >
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-row gap-1 items-center">
+              <div className="flex flex-row items-center gap-1">
                 <Button variant="ghost" size="sm" asChild>
                   <Link
                     href={`/${orgId}/menu/items`}
@@ -334,33 +332,34 @@ export function AddMenuForm({ orgId, initialItem }: AddMenuFormProps) {
                       <Label htmlFor="name">Menu Name</Label>
                       <Input
                         id="name"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder="e.g. Matcha Latte"
                         className="h-9"
-                        required
+                        placeholder="e.g. Matcha Latte"
+                        {...form.register("name")}
                       />
+                      {formState.errors.name && (
+                        <p className="text-destructive text-xs">
+                          {formState.errors.name.message}
+                        </p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="description">Menu Description</Label>
                       <Textarea
                         id="description"
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
                         placeholder="Short description..."
                         className="min-h-[80px] resize-y"
                         rows={3}
+                        {...form.register("description")}
                       />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="details">Menu Details</Label>
                       <Textarea
                         id="details"
-                        value={menuDetails}
-                        onChange={(e) => setMenuDetails(e.target.value)}
                         placeholder="One point per line..."
                         className="min-h-[100px] resize-y font-sans"
                         rows={5}
+                        {...form.register("long_description")}
                       />
                       <p className="text-muted-foreground text-xs">
                         One detail per line. Shown as bullet points.
@@ -376,11 +375,17 @@ export function AddMenuForm({ orgId, initialItem }: AddMenuFormProps) {
                     </h2>
                   </CardHeader>
                   <CardContent>
-                    <MenuItemImageUpload
-                      orgId={orgId}
-                      urls={images}
-                      onChange={setImages}
-                      disabled={isSaving}
+                    <Controller
+                      control={form.control}
+                      name="images"
+                      render={({ field }) => (
+                        <MenuItemImageUpload
+                          orgId={orgId}
+                          urls={field.value}
+                          onChange={field.onChange}
+                          disabled={isSaving}
+                        />
+                      )}
                     />
                   </CardContent>
                 </Card>
@@ -396,21 +401,27 @@ export function AddMenuForm({ orgId, initialItem }: AddMenuFormProps) {
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
                       <Label>Food type</Label>
-                      <Select
-                        value={foodType}
-                        onValueChange={(v) => setFoodType(v as "veg" | "non_veg")}
-                      >
-                        <SelectTrigger className="h-9 w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {FOOD_TYPE_OPTIONS.map((ft) => (
-                            <SelectItem key={ft} value={ft}>
-                              {ft === "non_veg" ? "Non-veg" : "Veg"}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Controller
+                        control={form.control}
+                        name="food_type"
+                        render={({ field }) => (
+                          <Select
+                            value={field.value}
+                            onValueChange={field.onChange}
+                          >
+                            <SelectTrigger className="h-9 w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {FOOD_TYPE_OPTIONS.map((ft) => (
+                                <SelectItem key={ft} value={ft}>
+                                  {ft === "non_veg" ? "Non-veg" : "Veg"}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label>Category</Label>
@@ -419,7 +430,7 @@ export function AddMenuForm({ orgId, initialItem }: AddMenuFormProps) {
                         value={categoryId}
                         onValueChange={(v) => {
                           setCategoryId(v);
-                          setSubCategoryId("");
+                          setValue("sub_category_id", "");
                         }}
                         placeholder="Search categories…"
                         emptyMessage="No category found."
@@ -428,22 +439,34 @@ export function AddMenuForm({ orgId, initialItem }: AddMenuFormProps) {
                     </div>
                     <div className="space-y-2">
                       <Label>Sub-category</Label>
-                      <Select
-                        value={subCategoryId || undefined}
-                        onValueChange={setSubCategoryId}
-                        disabled={!categoryId}
-                      >
-                        <SelectTrigger className="h-9 w-full">
-                          <SelectValue placeholder={categoryId ? "Select sub-category" : "Select a category first"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {subcategories.map((s) => (
-                            <SelectItem key={s.id} value={s.id}>
-                              {s.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Controller
+                        control={form.control}
+                        name="sub_category_id"
+                        render={({ field }) => (
+                          <Select
+                            value={field.value || undefined}
+                            onValueChange={field.onChange}
+                            disabled={!categoryId}
+                          >
+                            <SelectTrigger className="h-9 w-full">
+                              <SelectValue
+                                placeholder={
+                                  categoryId
+                                    ? "Select sub-category"
+                                    : "Select a category first"
+                                }
+                              />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {subcategories.map((s) => (
+                                <SelectItem key={s.id} value={s.id}>
+                                  {s.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
                       <p className="text-muted-foreground text-xs">
                         Manage categories and sub-categories in the sidebar.
                       </p>
@@ -462,10 +485,9 @@ export function AddMenuForm({ orgId, initialItem }: AddMenuFormProps) {
                       <Label htmlFor="sku">Stock Keeping Item (SKU)</Label>
                       <Input
                         id="sku"
-                        value={sku}
-                        onChange={(e) => setSku(e.target.value)}
                         placeholder="e.g. CFFE-MM-01-A9"
                         className="h-9"
+                        {...form.register("sku")}
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-3">
@@ -475,10 +497,9 @@ export function AddMenuForm({ orgId, initialItem }: AddMenuFormProps) {
                           id="stock"
                           type="number"
                           min={0}
-                          value={stockQuantity}
-                          onChange={(e) => setStockQuantity(e.target.value)}
                           placeholder="1,000"
                           className="h-9"
+                          {...form.register("stock_quantity")}
                         />
                       </div>
                       <div className="space-y-2">
@@ -487,10 +508,9 @@ export function AddMenuForm({ orgId, initialItem }: AddMenuFormProps) {
                           id="minStock"
                           type="number"
                           min={0}
-                          value={minimumStock}
-                          onChange={(e) => setMinimumStock(e.target.value)}
                           placeholder="500"
                           className="h-9"
+                          {...form.register("minimum_stock")}
                         />
                       </div>
                     </div>
@@ -512,11 +532,15 @@ export function AddMenuForm({ orgId, initialItem }: AddMenuFormProps) {
                           type="number"
                           step="0.01"
                           min={0}
-                          value={originalPrice}
-                          onChange={(e) => setOriginalPrice(e.target.value)}
                           placeholder="5.00"
                           className="h-9"
+                          {...form.register("price")}
                         />
+                        {formState.errors.price && (
+                          <p className="text-destructive text-xs">
+                            {formState.errors.price.message}
+                          </p>
+                        )}
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="sellPrice">Sell Price ($)</Label>
@@ -525,47 +549,77 @@ export function AddMenuForm({ orgId, initialItem }: AddMenuFormProps) {
                           type="number"
                           step="0.01"
                           min={0}
-                          value={displaySellPrice}
-                          onChange={(e) => setCustomSellPriceValue(e.target.value)}
-                          disabled={!customSellPrice}
                           placeholder="4.50"
                           className="h-9"
+                          value={displaySellPrice}
+                          onChange={(e) =>
+                            setValue("customSellPriceValue", e.target.value, {
+                              shouldDirty: true,
+                            })
+                          }
+                          disabled={!customSellPrice}
                         />
                       </div>
                     </div>
                     <div className="space-y-2">
                       <Label>Discount</Label>
-                      <Select
-                        value={selectedDiscountId || "none"}
-                        onValueChange={(v) => setSelectedDiscountId(v === "none" ? "" : v)}
-                      >
-                        <SelectTrigger className="h-9 w-full">
-                          <SelectValue placeholder="None" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">None</SelectItem>
-                          {activeDiscounts.map((d) => (
-                            <SelectItem key={d.id} value={d.id}>
-                              {d.name} ({d.type === "percentage" ? `${d.value}%` : d.value})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Controller
+                        control={form.control}
+                        name="selectedDiscountId"
+                        render={({ field }) => (
+                          <Select
+                            value={field.value || "none"}
+                            onValueChange={(v) =>
+                              field.onChange(v === "none" ? "" : v)
+                            }
+                          >
+                            <SelectTrigger className="h-9 w-full">
+                              <SelectValue placeholder="None" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">None</SelectItem>
+                              {activeDiscounts.map((d) => (
+                                <SelectItem key={d.id} value={d.id}>
+                                  {d.name} (
+                                  {d.type === "percentage"
+                                    ? `${d.value}%`
+                                    : d.value}
+                                  )
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
                       <p className="text-muted-foreground text-xs">
-                        Sell price is calculated from discount. Override below if needed.
+                        Sell price is calculated from discount. Override below if
+                        needed.
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id="customSellPrice"
-                        checked={customSellPrice}
-                        onChange={(e) => setCustomSellPrice(e.target.checked)}
-                        className="h-4 w-4 rounded border-input"
+                      <Controller
+                        control={form.control}
+                        name="customSellPrice"
+                        render={({ field }) => (
+                          <>
+                            <input
+                              type="checkbox"
+                              id="customSellPrice"
+                              checked={field.value ?? false}
+                              onChange={(e) =>
+                                field.onChange(e.target.checked)
+                              }
+                              className="h-4 w-4 rounded border-input"
+                            />
+                            <Label
+                              htmlFor="customSellPrice"
+                              className="cursor-pointer font-normal"
+                            >
+                              Custom Sell Price
+                            </Label>
+                          </>
+                        )}
                       />
-                      <Label htmlFor="customSellPrice" className="font-normal cursor-pointer">
-                        Custom Sell Price
-                      </Label>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="minOrder">Minimum Order</Label>
@@ -573,25 +627,24 @@ export function AddMenuForm({ orgId, initialItem }: AddMenuFormProps) {
                         id="minOrder"
                         type="number"
                         min={1}
-                        value={minimumOrder}
-                        onChange={(e) => setMinimumOrder(e.target.value)}
                         placeholder="1"
                         className="h-9"
+                        {...form.register("minimum_order")}
                       />
                     </div>
                   </CardContent>
                 </Card>
               </div>
             </div>
-          </div>
+          </form>
         </div>
       </ScrollArea>
 
       <footer className="shrink-0 border-t border-border bg-background px-4 py-3">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3">
           <Button
-            type="button"
-            onClick={handleSave}
+            type="submit"
+            form="menu-item-form"
             disabled={isSaving || !isDirty}
             className={cn(
               "bg-emerald-600 text-white hover:bg-emerald-700",

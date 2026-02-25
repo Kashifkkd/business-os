@@ -138,6 +138,9 @@ export interface PropertySubCategory {
   updated_at: string;
 }
 
+/** RESO-aligned high-level property type. */
+export type PropertyType = "residential" | "commercial" | "land" | "industrial" | string;
+
 export interface Property {
   id: string;
   tenant_id: string;
@@ -145,6 +148,31 @@ export interface Property {
   type: string | null;
   created_at: string;
   updated_at: string;
+  // Structured address
+  address_line_1?: string | null;
+  address_line_2?: string | null;
+  city?: string | null;
+  state_or_province?: string | null;
+  postal_code?: string | null;
+  country?: string | null;
+  // Classification
+  property_type?: PropertyType | null;
+  category_id?: string | null;
+  subcategory_id?: string | null;
+  // Core characteristics
+  bedrooms?: number | null;
+  bathrooms?: number | null;
+  half_baths?: number | null;
+  living_area_sqft?: number | null;
+  lot_size_sqft?: number | null;
+  year_built?: number | null;
+  // Identifiers and extensibility
+  parcel_number?: string | null;
+  reference_id?: string | null;
+  features?: Record<string, unknown> | null;
+  // Optional metadata
+  notes?: string | null;
+  created_by?: string | null;
 }
 
 export interface Listing {
@@ -186,6 +214,30 @@ export interface Lead {
   updated_at: string;
 }
 
+/** Lead source option per tenant (from lead_sources table). Seeded when org is created. */
+export interface LeadSource {
+  id: string;
+  tenant_id: string;
+  name: string;
+  color: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type LeadActivityType = "note" | "email" | "call" | "status_change";
+
+export interface LeadActivity {
+  id: string;
+  tenant_id: string;
+  lead_id: string;
+  type: LeadActivityType;
+  content: string | null;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+  created_by: string | null;
+}
+
 /** Locale/format fields on tenant (for forms). Same as tenant locale columns. */
 export type TenantLocaleUpdate = Partial<{
   timezone: string;
@@ -198,3 +250,190 @@ export type TenantLocaleUpdate = Partial<{
   country: string;
   locale: string;
 }>;
+
+// ——— Employees module (cross-industry) ———
+
+export interface Department {
+  id: string;
+  tenant_id: string;
+  name: string;
+  code: string | null;
+  parent_id: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Designation {
+  id: string;
+  tenant_id: string;
+  name: string;
+  department_id: string | null;
+  sort_order: number;
+  level: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Employee {
+  id: string;
+  tenant_id: string;
+  profile_id: string | null;
+  department_id: string;
+  designation_id: string;
+  reports_to_id: string | null;
+  employee_number: string | null;
+  join_date: string | null;
+  leave_date: string | null;
+  is_active: boolean;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  /** Populated on read from departments.name */
+  department_name?: string | null;
+  /** Populated on read from designations.name */
+  designation_name?: string | null;
+  /** Populated on read from profiles or reports_to employee */
+  display_name?: string | null;
+  /** Populated on read: reports_to employee display name */
+  reports_to_name?: string | null;
+}
+
+// ——— Tasks module (cross-industry) ———
+
+export type TaskSpaceRole = "admin" | "member" | "viewer";
+
+export interface TaskSpace {
+  id: string;
+  tenant_id: string;
+  name: string;
+  description: string | null;
+  sort_order: number;
+  settings: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskList {
+  id: string;
+  space_id: string;
+  name: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type TaskStatusType = "todo" | "in_progress" | "done";
+
+export interface TaskStatus {
+  id: string;
+  tenant_id: string;
+  space_id: string | null;
+  name: string;
+  type: TaskStatusType;
+  sort_order: number;
+  color: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskLabel {
+  id: string;
+  tenant_id: string;
+  space_id: string | null;
+  name: string;
+  color: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type TaskPriority = "urgent" | "high" | "medium" | "low" | "none";
+
+export interface Task {
+  id: string;
+  tenant_id: string;
+  space_id: string;
+  list_id: string;
+  parent_id: string | null;
+  status_id: string;
+  title: string;
+  description: string | null;
+  priority: TaskPriority;
+  due_date: string | null;
+  start_date: string | null;
+  sort_order: number;
+  custom_fields: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  /** Populated on read */
+  status_name?: string | null;
+  status_type?: TaskStatusType | null;
+  list_name?: string | null;
+  space_name?: string | null;
+  assignee_ids?: string[];
+  label_ids?: string[];
+  labels?: TaskLabel[];
+  subtask_count?: number;
+}
+
+export interface TaskAssignee {
+  task_id: string;
+  user_id: string;
+  created_at: string;
+}
+
+export interface TaskComment {
+  id: string;
+  tenant_id: string;
+  task_id: string;
+  parent_id: string | null;
+  author_id: string;
+  body: string;
+  created_at: string;
+  updated_at: string;
+  /** Populated on read */
+  author_name?: string | null;
+}
+
+export interface TaskAttachment {
+  id: string;
+  tenant_id: string;
+  task_id: string;
+  name: string;
+  storage_path: string;
+  content_type: string | null;
+  size_bytes: number | null;
+  created_at: string;
+  created_by: string | null;
+}
+
+export type TaskActivityAction =
+  | "created"
+  | "updated"
+  | "status_changed"
+  | "assignee_added"
+  | "assignee_removed"
+  | "comment_added";
+
+export interface TaskActivity {
+  id: string;
+  tenant_id: string;
+  task_id: string;
+  actor_id: string | null;
+  action_type: TaskActivityAction;
+  old_values: Record<string, unknown> | null;
+  new_values: Record<string, unknown> | null;
+  created_at: string;
+  /** Populated on read */
+  actor_name?: string | null;
+}
+
+export interface SpaceMember {
+  id: string;
+  space_id: string;
+  user_id: string;
+  role: TaskSpaceRole;
+  created_at: string;
+}

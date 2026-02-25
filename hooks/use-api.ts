@@ -54,12 +54,98 @@ export const queryKeys = {
     ["orgs", orgId, "property-subcategories", categoryId ?? ""] as const,
   leads: (
     orgId: string,
-    params: { page: number; pageSize: number; search?: string; status?: string }
-  ) => ["orgs", orgId, "leads", params.page, params.pageSize, params.search ?? "", params.status ?? ""] as const,
+    params: {
+      page: number;
+      pageSize: number;
+      search?: string;
+      status?: string;
+      source?: string;
+      created_after?: string;
+      created_before?: string;
+      sortBy?: string;
+      order?: string;
+    }
+  ) =>
+    [
+      "orgs",
+      orgId,
+      "leads",
+      params.page,
+      params.pageSize,
+      params.search ?? "",
+      params.status ?? "",
+      params.source ?? "",
+      params.created_after ?? "",
+      params.created_before ?? "",
+      params.sortBy ?? "created_at",
+      params.order ?? "desc",
+    ] as const,
   lead: (orgId: string, leadId: string) => ["orgs", orgId, "leads", leadId] as const,
+  leadActivities: (orgId: string, leadId: string) => ["orgs", orgId, "leads", leadId, "activities"] as const,
+  leadSources: (orgId: string) => ["orgs", orgId, "leads", "sources"] as const,
+  leadStats: (orgId: string) => ["orgs", orgId, "leads", "stats"] as const,
   listings: (orgId: string, params: { page: number; pageSize: number; status?: string }) =>
     ["orgs", orgId, "listings", params.page, params.pageSize, params.status ?? ""] as const,
   listing: (orgId: string, listingId: string) => ["orgs", orgId, "listings", listingId] as const,
+  employees: (
+    orgId: string,
+    params: { page: number; pageSize: number; search?: string; department_id?: string; designation_id?: string; is_active?: boolean }
+  ) =>
+    [
+      "orgs",
+      orgId,
+      "employees",
+      params.page,
+      params.pageSize,
+      params.search ?? "",
+      params.department_id ?? "",
+      params.designation_id ?? "",
+      params.is_active ?? "",
+    ] as const,
+  employee: (orgId: string, employeeId: string) => ["orgs", orgId, "employees", employeeId] as const,
+  departmentsList: (orgId: string) => ["orgs", orgId, "departments"] as const,
+  department: (orgId: string, departmentId: string) => ["orgs", orgId, "departments", departmentId] as const,
+  designationsList: (orgId: string, departmentId?: string) =>
+    ["orgs", orgId, "designations", departmentId ?? ""] as const,
+  designation: (orgId: string, designationId: string) => ["orgs", orgId, "designations", designationId] as const,
+  // Tasks module
+  spaces: (orgId: string) => ["orgs", orgId, "spaces"] as const,
+  space: (orgId: string, spaceId: string) => ["orgs", orgId, "spaces", spaceId] as const,
+  spaceLists: (orgId: string, spaceId: string) => ["orgs", orgId, "spaces", spaceId, "lists"] as const,
+  spaceStatuses: (orgId: string, spaceId: string) => ["orgs", orgId, "spaces", spaceId, "statuses"] as const,
+  tasks: (
+    orgId: string,
+    params: {
+      space_id: string;
+      list_id?: string;
+      status_id?: string;
+      assignee_id?: string;
+      parent_id?: string;
+      search?: string;
+      sortBy?: string;
+      order?: string;
+      page: number;
+      pageSize: number;
+    }
+  ) =>
+    [
+      "orgs",
+      orgId,
+      "tasks",
+      params.space_id,
+      params.list_id ?? "",
+      params.status_id ?? "",
+      params.assignee_id ?? "",
+      params.parent_id ?? "",
+      params.search ?? "",
+      params.sortBy ?? "sort_order",
+      params.order ?? "desc",
+      params.page,
+      params.pageSize,
+    ] as const,
+  task: (orgId: string, taskId: string) => ["orgs", orgId, "tasks", taskId] as const,
+  taskComments: (orgId: string, taskId: string) => ["orgs", orgId, "tasks", taskId, "comments"] as const,
+  taskActivities: (orgId: string, taskId: string) => ["orgs", orgId, "tasks", taskId, "activities"] as const,
 };
 
 // ——— Profile (auth / me) ———

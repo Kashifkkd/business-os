@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { apiSuccess, apiError, API_ERROR_CODES } from "@/lib/api-response";
 import { getTenantById, getPropertyById } from "@/lib/supabase/queries";
 import type { Property } from "@/lib/supabase/types";
+import { buildPropertyPayload } from "@/lib/property-api";
 
 export async function GET(
   _request: Request,
@@ -60,16 +61,12 @@ export async function PATCH(
     return NextResponse.json(apiError(API_ERROR_CODES.BAD_REQUEST, "Invalid JSON"), { status: 400 });
   }
 
-  const payload: Record<string, unknown> = {};
-  if (typeof body.address === "string") {
-    const addressTrim = body.address.trim();
-    if (!addressTrim) {
-      return NextResponse.json(apiError(API_ERROR_CODES.VALIDATION_ERROR, "Address is required"), { status: 400 });
-    }
-    payload.address = addressTrim;
-  }
-  if (body.type !== undefined) {
-    payload.type = typeof body.type === "string" && body.type.trim() ? body.type.trim() : null;
+  const payload = buildPropertyPayload(body, { forInsert: false });
+  if (
+    payload.address !== undefined &&
+    (payload.address === "" || payload.address === null)
+  ) {
+    return NextResponse.json(apiError(API_ERROR_CODES.VALIDATION_ERROR, "Address is required"), { status: 400 });
   }
 
   if (Object.keys(payload).length === 0) {

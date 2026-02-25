@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { apiSuccess, apiError, API_ERROR_CODES } from "@/lib/api-response";
 import { getTenantById, getProperties, getPropertyById } from "@/lib/supabase/queries";
 import type { Property } from "@/lib/supabase/types";
+import { buildPropertyPayload } from "@/lib/property-api";
 
 /** GET list of properties. Query: page, pageSize, search */
 export async function GET(
@@ -31,6 +32,25 @@ export async function GET(
 export type CreatePropertyBody = {
   address: string;
   type?: string | null;
+  address_line_1?: string | null;
+  address_line_2?: string | null;
+  city?: string | null;
+  state_or_province?: string | null;
+  postal_code?: string | null;
+  country?: string | null;
+  property_type?: string | null;
+  category_id?: string | null;
+  subcategory_id?: string | null;
+  bedrooms?: number | null;
+  bathrooms?: number | null;
+  half_baths?: number | null;
+  living_area_sqft?: number | null;
+  lot_size_sqft?: number | null;
+  year_built?: number | null;
+  parcel_number?: string | null;
+  reference_id?: string | null;
+  features?: Record<string, unknown> | null;
+  notes?: string | null;
 };
 
 export async function POST(
@@ -67,11 +87,17 @@ export async function POST(
     return NextResponse.json(apiError(API_ERROR_CODES.VALIDATION_ERROR, "Address is required"), { status: 400 });
   }
 
-  const type = typeof body.type === "string" && body.type.trim() ? body.type.trim() : null;
+  const payload = buildPropertyPayload(body as unknown as Record<string, unknown>, {
+    forInsert: true,
+    createdBy: user.id,
+  });
+  payload.tenant_id = orgId;
+  payload.address = address;
+  if (payload.type === undefined) payload.type = typeof body.type === "string" && body.type.trim() ? body.type.trim() : null;
 
   const { data: row, error } = await supabase
     .from("properties")
-    .insert({ tenant_id: orgId, address, type })
+    .insert(payload)
     .select("id")
     .single();
 

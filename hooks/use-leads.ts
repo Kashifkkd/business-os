@@ -7,7 +7,8 @@ import {
   type UseQueryOptions,
   type UseMutationOptions,
 } from "@tanstack/react-query";
-import type { Lead } from "@/lib/supabase/types";
+import type { Lead, LeadActivity } from "@/lib/supabase/types";
+import type { LeadSourceItem } from "@/lib/lead-sources";
 import { queryKeys, fetcherData, API } from "@/hooks/use-api";
 
 export interface GetLeadsResult {
@@ -25,6 +26,7 @@ export type CreateLeadPayload = {
   source?: string | null;
   status?: string | null;
   notes?: string | null;
+  metadata?: Record<string, unknown>;
 };
 
 export type UpdateLeadPayload = Partial<{
@@ -35,17 +37,50 @@ export type UpdateLeadPayload = Partial<{
   source: string | null;
   status: string;
   notes: string | null;
+  metadata: Record<string, unknown>;
 }>;
+
+export type UseLeadsParams = {
+  page: number;
+  pageSize: number;
+  search?: string;
+  status?: string;
+  source?: string;
+  created_after?: string;
+  created_before?: string;
+  sortBy?: string;
+  order?: string;
+};
 
 /** Paginated leads list. */
 export function useLeads(
   orgId: string | undefined,
-  params: { page: number; pageSize: number; search?: string; status?: string },
+  params: UseLeadsParams,
   options?: Omit<UseQueryOptions<GetLeadsResult>, "queryKey" | "queryFn">
 ) {
-  const { page, pageSize, search, status } = params;
+  const {
+    page,
+    pageSize,
+    search,
+    status,
+    source,
+    created_after,
+    created_before,
+    sortBy = "created_at",
+    order = "desc",
+  } = params;
   return useQuery({
-    queryKey: queryKeys.leads(orgId ?? "", { page, pageSize, search, status }),
+    queryKey: queryKeys.leads(orgId ?? "", {
+      page,
+      pageSize,
+      search,
+      status,
+      source,
+      created_after,
+      created_before,
+      sortBy,
+      order,
+    }),
     queryFn: () => {
       if (!orgId) return Promise.resolve({ items: [], total: 0, page: 1, pageSize: 10 });
       const sp = new URLSearchParams();
@@ -53,6 +88,11 @@ export function useLeads(
       if (pageSize !== 10) sp.set("pageSize", String(pageSize));
       if (search) sp.set("search", search);
       if (status) sp.set("status", status);
+      if (source) sp.set("source", source);
+      if (created_after) sp.set("created_after", created_after);
+      if (created_before) sp.set("created_before", created_before);
+      if (sortBy && sortBy !== "created_at") sp.set("sortBy", sortBy);
+      if (order && order !== "desc") sp.set("order", order);
       const q = sp.toString();
       return fetcherData<GetLeadsResult>(`${API}/orgs/${orgId}/leads${q ? `?${q}` : ""}`);
     },
@@ -118,6 +158,26 @@ export function useUpdateLead(
   });
 }
 
+/** Update any lead by id (e.g. for pipeline drag-and-drop). */
+export function useUpdateLeadById(
+  orgId: string,
+  options?: UseMutationOptions<Lead, Error, { leadId: string; data: UpdateLeadPayload }>
+) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ leadId, data }: { leadId: string; data: UpdateLeadPayload }) =>
+      fetcherData<Lead>(`${API}/orgs/${orgId}/leads/${leadId}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+    onSuccess: (data) => {
+      qc.setQueryData(queryKeys.lead(orgId, data.id), data);
+      qc.invalidateQueries({ queryKey: ["orgs", orgId, "leads"] });
+    },
+    ...options,
+  });
+}
+
 /** Delete a lead. Invalidates leads list. */
 export function useDeleteLead(
   orgId: string,
@@ -132,6 +192,148 @@ export function useDeleteLead(
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["orgs", orgId, "leads"] });
     },
+    ...options,
+  });
+}
+
+/** Lead activities (timeline). */
+export function useLeadActivities(
+  orgId: string | undefined,
+  leadId: string | undefined,
+  options?: Omit<UseQueryOptions<LeadActivity[]>, "queryKey" | "queryFn">
+) {
+  return useQuery({
+    queryKey: queryKeys.leadActivities(orgId ?? "", leadId ?? ""),
+    queryFn: () =>
+      orgId && leadId
+        ? fetcherData<LeadActivity[]>(`${API}/orgs/${orgId}/leads/${leadId}/activities`)
+        : Promise.resolve([]),
+    enabled: !!orgId && !!leadId,
+    ...options,
+  });
+}
+
+/** Create a lead activity (e.g. note). Invalidates activities for that lead. */
+export function useCreateLeadActivity(
+  orgId: string,
+  leadId: string,
+  options?: UseMutationOptions<LeadActivity, Error, { type?: string; content?: string | null }>
+) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { type?: string; content?: string | null }) =>
+      fetcherData<LeadActivity>(`${API}/orgs/${orgId}/leads/${leadId}/activities`, {
+        method: "POST",
+        body: JSON.stringify({ type: body.type ?? "note", content: body.content ?? null }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.leadActivities(orgId, leadId) });
+    },
+    ...options,
+  });
+}
+
+/** Lead source options for the org (from tenant settings), with optional color per source. */
+export function useLeadSources(
+  orgId: string | undefined,
+  options?: Omit<UseQueryOptions<{ sources: LeadSourceItem[] }>, "queryKey" | "queryFn">
+) {
+  return useQuery({
+    queryKey: queryKeys.leadSources(orgId ?? ""),
+    queryFn: () =>
+      orgId
+        ? fetcherData<{ sources: LeadSourceItem[] }>(`${API}/orgs/${orgId}/leads/sources`).then((r) =>
+            r?.sources ? r : { sources: [] }
+          )
+        : Promise.resolve({ sources: [] }),
+    enabled: !!orgId,
+    ...options,
+  });
+}
+
+/** Update lead source options (name + color per source). */
+export function useUpdateLeadSources(
+  orgId: string,
+  options?: UseMutationOptions<{ sources: LeadSourceItem[] }, Error, LeadSourceItem[]>
+) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (sources: LeadSourceItem[]) =>
+      fetcherData<{ sources: LeadSourceItem[] }>(`${API}/orgs/${orgId}/leads/sources`, {
+        method: "PATCH",
+        body: JSON.stringify({ sources }),
+      }),
+    onSuccess: (data) => {
+      qc.setQueryData(queryKeys.leadSources(orgId), data);
+    },
+    ...options,
+  });
+}
+
+/** Bulk update lead status. */
+export function useBulkUpdateLeadsStatus(
+  orgId: string,
+  options?: UseMutationOptions<{ updated: number }, Error, { ids: string[]; status: string }>
+) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ ids, status }: { ids: string[]; status: string }) =>
+      fetcherData<{ updated: number }>(`${API}/orgs/${orgId}/leads/bulk`, {
+        method: "PATCH",
+        body: JSON.stringify({ ids, status }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["orgs", orgId, "leads"] });
+    },
+    ...options,
+  });
+}
+
+/** Bulk delete leads. */
+export function useBulkDeleteLeads(
+  orgId: string,
+  options?: UseMutationOptions<{ deleted: number }, Error, string[]>
+) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: string[]) =>
+      fetcherData<{ deleted: number }>(`${API}/orgs/${orgId}/leads/bulk`, {
+        method: "DELETE",
+        body: JSON.stringify({ ids }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["orgs", orgId, "leads"] });
+    },
+    ...options,
+  });
+}
+
+export type LeadsStatsResult = {
+  total: number;
+  byStatus: { status: string; count: number }[];
+  bySource: { source: string; count: number }[];
+  overTime: { date: string; count: number }[];
+  newThisWeek: number;
+};
+
+/** Leads stats for insights page. */
+export function useLeadsStats(
+  orgId: string | undefined,
+  options?: Omit<UseQueryOptions<LeadsStatsResult>, "queryKey" | "queryFn">
+) {
+  return useQuery({
+    queryKey: queryKeys.leadStats(orgId ?? ""),
+    queryFn: () =>
+      orgId
+        ? fetcherData<LeadsStatsResult>(`${API}/orgs/${orgId}/leads/stats`)
+        : Promise.resolve({
+            total: 0,
+            byStatus: [],
+            bySource: [],
+            overTime: [],
+            newThisWeek: 0,
+          }),
+    enabled: !!orgId,
     ...options,
   });
 }

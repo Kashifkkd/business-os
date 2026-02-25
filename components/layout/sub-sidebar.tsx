@@ -22,8 +22,13 @@ export interface SubSidebarProps {
 export function SubSidebar({ title, items, className }: SubSidebarProps) {
   const pathname = usePathname();
 
-  const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(href + "/");
+  // Only the most specific matching item is active (longest href that matches).
+  // This prevents "All leads" being active when on /leads/sources or /leads/insights.
+  const activeHref =
+    items
+      .filter(({ href }) => pathname === href || pathname.startsWith(href + "/"))
+      .sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null;
+  const isActive = (href: string) => href === activeHref;
 
   return (
     <aside

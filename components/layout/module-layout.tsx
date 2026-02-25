@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useTenant } from "@/hooks/use-tenant";
 import { SubSidebar } from "@/components/layout/sub-sidebar";
-import { getModuleNavConfig } from "@/lib/navigation/module-nav";
+import { getModuleNavConfigForPath } from "@/lib/navigation/module-nav";
 
 type ModuleLayoutProps = {
   children: React.ReactNode;
@@ -20,7 +20,7 @@ export function ModuleLayout({ children }: ModuleLayoutProps) {
   if (!tenant) return <>{children}</>;
 
   const base = `/${tenant.id}`;
-  const moduleNav = getModuleNavConfig(tenant.industry, base);
+  const moduleNav = getModuleNavConfigForPath(tenant.industry, base, pathname);
   const isInModule =
     moduleNav &&
     moduleNav.pathPrefixes.some(

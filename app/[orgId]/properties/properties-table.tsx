@@ -67,13 +67,48 @@ export function PropertiesTable({
           <span className="font-medium">{ctx.getValue()}</span>
         ),
       }),
-      columnHelper.accessor("type", {
+      columnHelper.accessor("property_type", {
         header: "Type",
+        cell: (ctx) => (
+          <span className="text-muted-foreground">
+            {ctx.getValue() ?? ctx.row.original.type ?? "—"}
+          </span>
+        ),
+      }),
+      columnHelper.accessor("city", {
+        header: "City",
         cell: (ctx) => (
           <span className="text-muted-foreground">
             {ctx.getValue() ?? "—"}
           </span>
         ),
+      }),
+      columnHelper.accessor("bedrooms", {
+        header: "Beds",
+        cell: (ctx) => (
+          <span className="text-muted-foreground tabular-nums">
+            {ctx.getValue() != null ? ctx.getValue() : "—"}
+          </span>
+        ),
+      }),
+      columnHelper.accessor("bathrooms", {
+        header: "Baths",
+        cell: (ctx) => (
+          <span className="text-muted-foreground tabular-nums">
+            {ctx.getValue() != null ? ctx.getValue() : "—"}
+          </span>
+        ),
+      }),
+      columnHelper.accessor("living_area_sqft", {
+        header: "Sq ft",
+        cell: (ctx) => {
+          const v = ctx.getValue();
+          return (
+            <span className="text-muted-foreground tabular-nums">
+              {v != null ? v.toLocaleString() : "—"}
+            </span>
+          );
+        },
       }),
       columnHelper.accessor("created_at", {
         header: "Added",
@@ -151,7 +186,7 @@ export function PropertiesTable({
       </div>
 
       {isLoading || isRefetching ? (
-        <TableLoadingSkeleton columnCount={4} rowCount={10} compact />
+        <TableLoadingSkeleton columnCount={8} rowCount={10} compact />
       ) : isArrayWithValues(data.items) ? (
         <div className="rounded-md border">
           <Table>

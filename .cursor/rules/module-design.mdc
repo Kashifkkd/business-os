@@ -1,0 +1,98 @@
+---
+description: Module setup and table/create/edit/view design – reference Menu module; apply to all CRUD modules
+alwaysApply: true
+---
+
+# Module Design – Tables, Create, Edit, View
+
+Use the **Menu** module (`app/[orgId]/menu/`) as the reference. All CRUD modules (Leads, Staff, Tasks, etc.) should follow this system design.
+
+---
+
+## 1. Module layout and navigation
+
+- **Layout** (`app/[orgId]/<module>/layout.tsx`): Content only. Do **not** render the sub-sidebar here; it is rendered by `ModuleLayout` in AppShell. The layout is a thin wrapper:
+
+```tsx
+"use client";
+
+/**
+ * <Module> content only. Secondary sidebar is rendered by ModuleLayout in AppShell.
+ */
+export default function ModuleLayout({ children }: { children: React.ReactNode }) {
+  return <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">{children}</div>;
+}
+```
+
+- **Index redirect**: If the module has a primary list, the root `page.tsx` should redirect to it (e.g. `redirect(\`/${params.orgId}/menu/items\`)`).
+- **Sub-nav**: Register the module in `lib/navigation/module-nav.ts`:
+  - **Path-based** (e.g. Leads, Tasks): Add a `getXxxModuleNav(basePath)` and include its path prefixes in `getModuleNavConfigForPath()` so the correct sidebar shows when the user is under that path.
+  - **Industry-based** (e.g. Cafe, Real Estate): Add to `getModuleNavConfig()` and ensure `pathPrefixes` cover all module routes (dashboard, list, new, [id], sub-pages).
+
+---
+
+## 2. List / table page
+
+- **Route**: `app/[orgId]/<module>/<resource>/page.tsx` (e.g. `menu/items/page.tsx`, `leads/page.tsx`).
+- **State**: Keep **URL as source of truth** for list state: `page`, `pageSize`, `search`, and filters (e.g. status, sort). Read from `useSearchParams()`, update via `router.push(pathname + "?" + new URLSearchParams(...))`.
+- **Debounce**: Debounce search input before syncing to URL (e.g. 300ms) to avoid excessive requests; keep a local `searchInput` and sync `debouncedSearch` → URL.
+- **Data**: Use a custom hook (e.g. `useMenuItemsPaginated`, `useLeads`) that calls the list API; pass `orgId` and query params; enable only when `orgId` and (if needed) `mounted` are set.
+- **Page structure**:
+  - **Header row**: Left = title + subtitle; right = search, date range/filters, primary action (e.g. Create, Import).
+  - **Table component**: Receives `data`, `searchParams`, `isLoading`, `isRefetching`. Renders:
+    - **Top bar**: Count text (“No X” / “Showing from–to of total”), filters button, Create button.
+    - **Bulk actions** (if applicable): When rows are selected, show “X selected” + bulk actions; clear selection.
+    - **Body**: Use `@tanstack/react-table` with `createColumnHelper`, shared `Table`/`TableHeader`/`TableBody` from `@/components/ui/table`.
+    - **Loading**: `TableLoadingSkeleton`; **empty state**: `EmptyState` with optional primary action.
+    - **Pagination**: `Paginated` component with pathname and current params.
+- **Container**: Use a consistent container (e.g. `container mx-auto max-w-6xl p-4` for list; or full width per product needs).
+
+---
+
+## 3. Create page
+
+- **Route**: `app/[orgId]/<module>/<resource>/new/page.tsx`.
+- **Layout**: Full-height content area: `className="h-full w-full min-h-0 flex flex-col"`. Let the form component own internal scroll (e.g. `overflow-y-auto` inside a form wrapper).
+- **Form**: Extract the form into a dedicated component (e.g. `AddMenuForm`) in the same segment or `new/` folder. Pass `orgId`; no `initialItem`/initial data. Use **React Hook Form** with **Zod** for validation (see Forms below).
+- **Submit**: Single submit handler (`handleSubmit` from React Hook Form); call create mutation (e.g. `useCreateMenuItem(orgId)`); on success, `router.push` to list or detail.
+- **Actions**: Submit and Cancel below the form; Cancel navigates back (e.g. `router.back()` or link to list).
+
+---
+
+## 4. Edit / view page ([id])
+
+- **Route**: `app/[orgId]/<module>/<resource>/[id]/page.tsx`.
+- **Data**: Fetch single resource with a hook (e.g. `useMenuItem(orgId, id)`). Show a **loading skeleton** that mirrors the form layout (cards, fields) while loading.
+- **Not found**: If `isError` or no data, redirect to the list (e.g. `router.replace(\`/${orgId}/<module>/<resource>\`)`) and return `null`.
+- **Reuse create form**: When the UX is “same form for create and edit”, pass `initialItem` (or equivalent) to the same form component; use React Hook Form’s `defaultValues` from the loaded entity. Use `key={item.id}` on the form so state resets when switching items.
+- **Layout**: Same full-height pattern as create: `h-full w-full min-h-0 flex flex-col overflow-auto`; form handles internal layout and scroll.
+
+---
+
+## 5. API and data layer
+
+- **Routes**: Under `app/api/orgs/[orgId]/`. Use kebab-case resource names (e.g. `menu-items`, `leads`). Nested resources: `menu-items/[id]`, `leads/[id]/activities`.
+- **List**: `GET` with query params (`page`, `pageSize`, `search`, filter keys). Response shape: `{ items, total, page, pageSize }`. Validate and bound `page`/`pageSize`; return 400 for missing `orgId`, 404 when tenant/context is invalid.
+- **Single**: `GET [id]` returns one entity; `PATCH [id]` and `DELETE [id]` for update/delete; `POST` (no id) for create. Use `params: Promise<{ orgId: string; id?: string }>` and `await params`.
+- **Auth & tenant**: Resolve tenant (e.g. `getTenantById(orgId)`); for mutations, ensure user is authenticated. Scope all queries by `orgId` (tenant).
+- **Hooks**: Colocate in `hooks/use-<resource>.ts` (e.g. `use-menu-items`, `use-leads`). Export list hook (paginated), single-item hook, and mutation hooks (create, update, delete). Hooks call fetch to the API routes; types from `@/lib/supabase/types` or shared API types.
+
+---
+
+## 6. Forms (React Hook Form + Zod)
+
+- **Form library**: Use **React Hook Form** (`react-hook-form`) for all create/edit forms. Use **Zod** (`zod`) for schema-based validation.
+- **Integration**: Use `@hookform/resolvers/zod` to resolve the Zod schema with React Hook Form: `useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: ... })`.
+- **Schema**: Define a Zod schema (e.g. `createLeadSchema`, `menuItemSchema`) for the form shape; reuse or extend for edit (e.g. optional `id`). Validate required fields, formats (email, phone), and any business rules in the schema.
+- **Fields**: Register inputs with `register()`, or use `Controller`/`FormField` for controlled components (e.g. combobox, phone input). Show validation errors via `formState.errors` and associate with fields (e.g. `FormMessage` from shadcn form components if used).
+- **Submit**: Use `handleSubmit(onValid)` so the handler runs only after Zod validation passes. Call the create/update mutation inside `onValid` with the typed payload.
+
+---
+
+## 7. Shared conventions
+
+- **Types**: Prefer `@/lib/supabase/types` for DB-backed entities; define request/response types in the API route or a shared `lib` file when needed.
+- **UI**: Use `@/components/ui` (Button, Card, Input, Label, Select, Textarea, Table, etc.) and Tailwind. Use existing shared components: `EmptyState`, `Paginated`, `TableLoadingSkeleton`, `DateRangeFilter`, `SearchBox`, `NameDisplay`, `DateDisplay`, etc.
+- **Server vs client**: Prefer Server Components for static or server-fetched content; use client components for forms, tables, URL state, and interactivity. Layouts that only wrap children can be client as in the reference.
+
+Applying this consistently keeps modules predictable and the project’s system design coherent.

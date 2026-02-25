@@ -1,0 +1,11 @@
+Act as a senior engineer improving existing code.
+
+Goals:
+- remove duplication
+- improve readability
+- improve performance
+- keep behavior unchanged
+
+Never change logic unless necessary.---
+alwaysApply: true
+---

@@ -51,6 +51,7 @@ export type UpdateLeadBody = Partial<{
   source: string | null;
   status: string;
   notes: string | null;
+  metadata: Record<string, unknown>;
 }>;
 
 export async function PATCH(
@@ -118,6 +119,9 @@ export async function PATCH(
   }
   if (body.notes !== undefined) {
     payload.notes = typeof body.notes === "string" && body.notes.trim() ? body.notes.trim() : null;
+  }
+  if (body.metadata !== undefined && typeof body.metadata === "object" && !Array.isArray(body.metadata)) {
+    payload.metadata = body.metadata;
   }
 
   if (Object.keys(payload).length === 0) {

@@ -14,7 +14,10 @@ export interface GetLeadsResult {
   pageSize: number;
 }
 
-/** GET list of leads. Query: page, pageSize, search, status */
+const SORT_COLUMNS = ["created_at", "name", "company", "status"] as const;
+type SortColumn = (typeof SORT_COLUMNS)[number];
+
+/** GET list of leads. Query: page, pageSize, search, status, source, created_after, created_before, sortBy, order */
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ orgId: string }> }
@@ -34,6 +37,12 @@ export async function GET(
   const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize")) || 10));
   const search = (searchParams.get("search") ?? "").trim() || undefined;
   const status = (searchParams.get("status") ?? "").trim() || undefined;
+  const source = (searchParams.get("source") ?? "").trim() || undefined;
+  const createdAfter = (searchParams.get("created_after") ?? "").trim() || undefined;
+  const createdBefore = (searchParams.get("created_before") ?? "").trim() || undefined;
+  const sortByRaw = (searchParams.get("sortBy") ?? "created_at").trim();
+  const sortBy: SortColumn = SORT_COLUMNS.includes(sortByRaw as SortColumn) ? (sortByRaw as SortColumn) : "created_at";
+  const order = (searchParams.get("order") ?? "desc").toLowerCase() === "asc" ? "asc" : "desc";
 
   const supabase = await createClient();
   const {
@@ -50,7 +59,7 @@ export async function GET(
     .from("leads")
     .select(LEAD_SELECT, { count: "exact" })
     .eq("tenant_id", orgId)
-    .order("created_at", { ascending: false })
+    .order(sortBy, { ascending: order === "asc" })
     .range(from, to);
 
   if (search) {
@@ -59,6 +68,17 @@ export async function GET(
   }
   if (status) {
     query = query.eq("status", status);
+  }
+  if (source) {
+    query = query.eq("source", source);
+  }
+  if (createdAfter) {
+    const fromDate = createdAfter.includes("T") ? createdAfter : `${createdAfter}T00:00:00.000Z`;
+    query = query.gte("created_at", fromDate);
+  }
+  if (createdBefore) {
+    const toDate = createdBefore.includes("T") ? createdBefore : `${createdBefore}T23:59:59.999Z`;
+    query = query.lte("created_at", toDate);
   }
 
   const { data: rows, error, count } = await query;
@@ -80,6 +100,7 @@ export type CreateLeadBody = {
   source?: string | null;
   status?: string | null;
   notes?: string | null;
+  metadata?: Record<string, unknown>;
 };
 
 export async function POST(
@@ -116,6 +137,10 @@ export async function POST(
     return NextResponse.json(apiError(API_ERROR_CODES.VALIDATION_ERROR, "Name is required"), { status: 400 });
   }
 
+  const metadata =
+    body.metadata && typeof body.metadata === "object" && !Array.isArray(body.metadata)
+      ? body.metadata
+      : {};
   const insert: Record<string, unknown> = {
     tenant_id: orgId,
     name,
@@ -125,6 +150,7 @@ export async function POST(
     source: typeof body.source === "string" && body.source.trim() ? body.source.trim() : null,
     status: typeof body.status === "string" && body.status.trim() ? body.status.trim() : "new",
     notes: typeof body.notes === "string" && body.notes.trim() ? body.notes.trim() : null,
+    metadata: Object.keys(metadata).length > 0 ? metadata : {},
   };
 
   const { data: row, error } = await supabase

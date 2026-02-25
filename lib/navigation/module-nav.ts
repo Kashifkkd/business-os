@@ -7,6 +7,12 @@ import {
   Tag,
   BarChart3,
   Home,
+  ListFilter,
+  LayoutGrid,
+  UserPlus,
+  ListTodo,
+  Calendar,
+  Table2,
 } from "lucide-react";
 
 export interface SubNavItem {
@@ -38,6 +44,73 @@ export function getModuleNavConfig(
     return getRealEstateModuleNav(basePath);
   }
   return null;
+}
+
+/** Leads module sub-nav (path-based: shown when user is under /leads). */
+export function getLeadsModuleNav(basePath: string): ModuleNavConfig {
+  const base = basePath;
+  const leads = `${base}/leads`;
+  return {
+    title: "LEADS",
+    pathPrefixes: [
+      leads,
+      `${leads}/new`,
+      `${leads}/pipeline`,
+      `${leads}/sources`,
+      `${leads}/insights`,
+      `${leads}/import`,
+    ],
+    items: [
+      { href: leads, label: "All leads", icon: ListFilter },
+      { href: `${leads}/pipeline`, label: "Pipeline", icon: LayoutGrid },
+      { href: `${leads}/sources`, label: "Sources", icon: Tag },
+      { href: `${leads}/insights`, label: "Insights", icon: BarChart3 },
+    ],
+  };
+}
+
+/** Tasks module sub-nav (path-based: shown when user is under /tasks). */
+export function getTasksModuleNav(basePath: string): ModuleNavConfig {
+  const base = basePath;
+  const tasks = `${base}/tasks`;
+  return {
+    title: "TASKS",
+    pathPrefixes: [
+      tasks,
+      `${tasks}/new`,
+      `${tasks}/list`,
+      `${tasks}/board`,
+      `${tasks}/calendar`,
+      `${tasks}/table`,
+    ],
+    items: [
+      { href: tasks, label: "All tasks", icon: ListTodo },
+      { href: `${tasks}/list`, label: "List", icon: ListFilter },
+      { href: `${tasks}/board`, label: "Board", icon: LayoutGrid },
+      { href: `${tasks}/calendar`, label: "Calendar", icon: Calendar },
+      { href: `${tasks}/table`, label: "Table", icon: Table2 },
+    ],
+  };
+}
+
+/**
+ * Returns module nav with path precedence: when pathname is under /leads, use Leads module;
+ * when under /tasks, use Tasks module; otherwise use industry-based config (Cafe / Real Estate).
+ */
+export function getModuleNavConfigForPath(
+  industry: string,
+  basePath: string,
+  pathname: string
+): ModuleNavConfig | null {
+  const leadsPrefix = `${basePath}/leads`;
+  if (pathname === leadsPrefix || pathname.startsWith(leadsPrefix + "/")) {
+    return getLeadsModuleNav(basePath);
+  }
+  const tasksPrefix = `${basePath}/tasks`;
+  if (pathname === tasksPrefix || pathname.startsWith(tasksPrefix + "/")) {
+    return getTasksModuleNav(basePath);
+  }
+  return getModuleNavConfig(industry, basePath);
 }
 
 export function getRealEstateModuleNav(basePath: string): ModuleNavConfig {

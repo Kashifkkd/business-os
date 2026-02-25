@@ -21,6 +21,19 @@ export type DateRangeValue = {
 
 const PRESETS: { id: string; label: string; getValue: () => DateRangeValue }[] = [
   {
+    id: "allTime",
+    label: "All time",
+    getValue: () => {
+      const end = new Date();
+      const start = new Date(2000, 0, 1);
+      return {
+        from: start.toISOString().slice(0, 10),
+        to: end.toISOString().slice(0, 10),
+        label: "All time",
+      };
+    },
+  },
+  {
     id: "today",
     label: "Today",
     getValue: () => {
@@ -50,20 +63,6 @@ const PRESETS: { id: string; label: string; getValue: () => DateRangeValue }[] =
         from: start.toISOString().slice(0, 10),
         to: end.toISOString().slice(0, 10),
         label: "Last 7 days",
-      };
-    },
-  },
-  {
-    id: "last30",
-    label: "Last 30 days",
-    getValue: () => {
-      const end = new Date();
-      const start = new Date();
-      start.setDate(start.getDate() - 29);
-      return {
-        from: start.toISOString().slice(0, 10),
-        to: end.toISOString().slice(0, 10),
-        label: "Last 30 days",
       };
     },
   },
@@ -101,6 +100,23 @@ function formatRangeLabel(from: string, to: string): string {
   const a = new Date(from);
   const b = new Date(to);
   return `${format(a, "LLL dd, y")} – ${format(b, "LLL dd, y")}`;
+}
+
+/** If value matches a preset, return preset label; otherwise return formatted date range (custom). */
+function getDisplayLabel(value: DateRangeValue): string {
+  const fromDate = (value.from ?? "").slice(0, 10);
+  const toDate = (value.to ?? "").slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
+  // All time: range starting 2000-01-01 up to today (or any end) → always show "All time", never dates
+  if (fromDate === "2000-01-01" && (!toDate || toDate <= today || toDate >= "2000-01-01")) {
+    return "All time";
+  }
+  for (const preset of PRESETS) {
+    if (preset.id === "allTime") continue;
+    const p = preset.getValue();
+    if (p.from === fromDate && p.to === toDate) return preset.label;
+  }
+  return value.label;
 }
 
 
@@ -155,7 +171,8 @@ export function DateRangeFilter({
     setOpen(false);
   }, [customFrom, customTo, onChange]);
 
-  const chipLabel = value.label;
+  const today = new Date().toISOString().slice(0, 10);
+  const chipLabel = getDisplayLabel(value);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -189,7 +206,9 @@ export function DateRangeFilter({
                   type="button"
                   className={cn(
                     "rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted",
-                    value.label === preset.label && "bg-muted font-medium"
+                    (preset.id === "allTime"
+                      ? (value.from ?? "").slice(0, 10) === "2000-01-01" && ((value.to ?? "").slice(0, 10) <= today || (value.to ?? "").slice(0, 10) >= "2000-01-01")
+                      : (value.from ?? "").slice(0, 10) === preset.getValue().from && (value.to ?? "").slice(0, 10) === preset.getValue().to) && "bg-muted font-medium"
                   )}
                   onClick={() => handlePreset(preset)}
                 >
@@ -266,7 +285,7 @@ export function DateRangeFilter({
   );
 }
 
-/** Returns default range (e.g. Last 7 days) for initial state. */
+/** Returns default range (All time) for initial state. */
 export function getDefaultDateRange(): DateRangeValue {
-  return PRESETS[2].getValue(); // Last 7 days
+  return PRESETS[0].getValue(); // All time
 }

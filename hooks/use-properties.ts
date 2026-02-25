@@ -14,11 +14,49 @@ import { queryKeys, fetcherData, API } from "@/hooks/use-api";
 export type CreatePropertyPayload = {
   address: string;
   type?: string | null;
+  address_line_1?: string | null;
+  address_line_2?: string | null;
+  city?: string | null;
+  state_or_province?: string | null;
+  postal_code?: string | null;
+  country?: string | null;
+  property_type?: string | null;
+  category_id?: string | null;
+  subcategory_id?: string | null;
+  bedrooms?: number | null;
+  bathrooms?: number | null;
+  half_baths?: number | null;
+  living_area_sqft?: number | null;
+  lot_size_sqft?: number | null;
+  year_built?: number | null;
+  parcel_number?: string | null;
+  reference_id?: string | null;
+  features?: Record<string, unknown> | null;
+  notes?: string | null;
 };
 
 export type UpdatePropertyPayload = {
   address?: string;
   type?: string | null;
+  address_line_1?: string | null;
+  address_line_2?: string | null;
+  city?: string | null;
+  state_or_province?: string | null;
+  postal_code?: string | null;
+  country?: string | null;
+  property_type?: string | null;
+  category_id?: string | null;
+  subcategory_id?: string | null;
+  bedrooms?: number | null;
+  bathrooms?: number | null;
+  half_baths?: number | null;
+  living_area_sqft?: number | null;
+  lot_size_sqft?: number | null;
+  year_built?: number | null;
+  parcel_number?: string | null;
+  reference_id?: string | null;
+  features?: Record<string, unknown> | null;
+  notes?: string | null;
 };
 
 /** Paginated properties list. */

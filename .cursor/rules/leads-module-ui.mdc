@@ -1,0 +1,32 @@
+---
+description: Leads module – table and create page layout and patterns
+globs: app/[orgId]/leads/**/*.tsx
+alwaysApply: false
+---
+
+# Leads Module – Table & Create Page Design
+
+## Leads list / table page
+
+- **Layout**: Page uses full-width container. Top section: title + subtitle on the left; date range filter and Export on the right. The **toolbar row (count, search, filters, create)** lives **inside the table component** (e.g. `LeadsTable`), not as a separate row on the page.
+- **Table component**:
+  - **Top bar**: Left = count text (“No leads” or “Showing X–Y of Z leads”). Right = SearchBox, Filters button (opens filter dialog), New lead button. Pass `searchValue`, `onSearchChange`, `onFilterClick` from the page so the filter dialog and URL state stay in the page.
+  - **Bulk actions**: When rows are selected, show a toolbar with “X selected”, bulk status change, bulk delete, clear selection.
+  - Use sortable column headers where appropriate; pagination below the table.
+- **Filters**: Status, Source, Sort live in a **dialog** opened by the Filters button (not inline dropdowns). Apply updates URL params and closes the dialog.
+- **Date range**: Use `DateRangeFilter` from `@/components/date-range-filter` for created_after / created_before; do not use raw date inputs on the list page.
+
+## New lead (create) page
+
+- **Width**: **Full width** – no `max-w-xl` or narrow container. Use `w-full` and padding (e.g. `p-4 md:p-6`).
+- **Layout**: **Multi-card, two columns** on large screens:
+  - **Left card**: Contact information (Name*, Email, **Phone**, Company, Job title, Website). Use `grid grid-cols-1 lg:grid-cols-2` so cards sit side by side on large screens.
+  - **Right card**: Qualification & notes (Source, Status, Notes textarea with ample height).
+  - Each card has `Card`, `CardHeader` (with `CardTitle` and short description), `CardContent` with spaced form fields.
+- **Phone**: Use **`PhoneInput`** from `@/components/ui/phone-input` for the phone/mobile field (country selector, E.164). Do not use a plain `Input` for phone.
+- **Fields**: Include enough fields to utilize space: name, email, phone (PhoneInput), company, job title, website (store in metadata if not on main schema), source, status, notes. Add more source options if needed (e.g. Social media, Event).
+- **Actions**: Submit and Cancel buttons below the card grid, full width row (e.g. `mt-6 flex gap-2 border-t pt-6`).
+
+## Shared
+
+- Use `@/components/ui` (Button, Card, Input, Label, Select, Textarea, etc.) and Tailwind for layout. Keep create form controlled with React state and a single submit handler that calls the create mutation (e.g. `useCreateLead`).

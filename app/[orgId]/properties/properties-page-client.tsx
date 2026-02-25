@@ -110,7 +110,6 @@ export function PropertiesPageClient() {
             value={dateRange}
             onChange={setDateRange}
             placeholder="Date range"
-            className="min-w-[140px]"
           />
           <Button variant="outline" size="sm">
             <Upload className="size-3.5" />

@@ -1,0 +1,26 @@
+Project Context:
+
+- Multi-tenant SaaS platform
+- RBAC authorization exists
+- Permission system exists
+- Redis configured
+- Next.js App Router
+- TanStack Query for client fetching
+- API-first architecture
+
+Conventions:
+- Always use hooks for data fetching.
+- No server components for frequently updated data.
+- Use caching strategy.
+- API responses follow:
+  { success: boolean, data?: any, error?: string }
+
+Database:
+- snake_case column names
+- camelCase response fields
+
+Never:
+- break tenant isolation
+- bypass authorization middleware---
+alwaysApply: true
+---

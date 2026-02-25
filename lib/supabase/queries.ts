@@ -435,6 +435,9 @@ export const getTenantMembers = cache(async function getTenantMembers(
 
 // ——— Real estate: properties ———
 
+const PROPERTY_SELECT =
+  "id, tenant_id, address, type, created_at, updated_at, address_line_1, address_line_2, city, state_or_province, postal_code, country, property_type, category_id, subcategory_id, bedrooms, bathrooms, half_baths, living_area_sqft, lot_size_sqft, year_built, parcel_number, reference_id, features, notes, created_by";
+
 export interface GetPropertiesParams {
   page?: number;
   pageSize?: number;
@@ -468,7 +471,7 @@ export async function getProperties(
 
   let query = supabase
     .from("properties")
-    .select("id, tenant_id, address, type, created_at, updated_at", { count: "exact" })
+    .select(PROPERTY_SELECT, { count: "exact" })
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
 
@@ -502,7 +505,7 @@ export async function getPropertyById(
 
   const { data: row, error } = await supabase
     .from("properties")
-    .select("id, tenant_id, address, type, created_at, updated_at")
+    .select(PROPERTY_SELECT)
     .eq("tenant_id", tenantId)
     .eq("id", propertyId)
     .single();

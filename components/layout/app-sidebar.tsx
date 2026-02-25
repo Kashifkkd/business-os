@@ -144,7 +144,7 @@ export function AppSidebar() {
             </Link>
           ))}
         </div>
-        <div className="mt-4 space-y-1">
+        <div className="space-y-1">
           {managementItems.map(({ href, label, icon: Icon }) => (
             <Link key={href} href={href} title={label}>
               <Button

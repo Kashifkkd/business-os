@@ -39,16 +39,21 @@ interface CafeDashboardProps {
   orgId: string;
   /** When true, show "Dashboard" heading and description (e.g. on menu/dashboard). When false, minimal heading (e.g. on org home overview). */
   showHeading?: boolean;
+  /** When true, use full width (no max-w container). Use on overview page. */
+  fullWidth?: boolean;
 }
 
-export function CafeDashboard({ orgId, showHeading = true }: CafeDashboardProps) {
+const containerClass = (full: boolean) =>
+  full ? "w-full min-w-0" : "container mx-auto max-w-6xl p-4";
+
+export function CafeDashboard({ orgId, showHeading = true, fullWidth = false }: CafeDashboardProps) {
   const { data: stats, isLoading } = useCafeDashboard(orgId);
 
   if (!orgId) return null;
 
   if (isLoading || !stats) {
     return (
-      <div className="container mx-auto max-w-6xl p-4">
+      <div className={containerClass(fullWidth)}>
         {showHeading && (
           <div className="mb-2">
             <h1 className="text-md font-semibold">Dashboard</h1>
@@ -115,7 +120,7 @@ export function CafeDashboard({ orgId, showHeading = true }: CafeDashboardProps)
   ];
 
   return (
-    <div className="container mx-auto max-w-6xl p-4">
+    <div className={containerClass(fullWidth)}>
       {showHeading && (
         <div className="mb-2">
           <h1 className="text-md font-semibold">Dashboard</h1>

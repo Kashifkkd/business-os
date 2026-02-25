@@ -13,9 +13,9 @@ export default function OrgHomePage() {
 
   if (orgId && !tenant) {
     return (
-      <div className="container mx-auto max-w-6xl p-4">
+      <div className="w-full min-w-0 px-4 py-6 md:px-6 lg:px-8">
         <Skeleton className="mb-4 h-8 w-48" />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-24 rounded-lg" />
           ))}
@@ -27,19 +27,19 @@ export default function OrgHomePage() {
   if (!tenant) return null;
 
   return (
-    <div className="container mx-auto max-w-5xl p-4">
+    <div className="w-full min-w-0 px-4 py-6 md:px-6 lg:px-8">
       {tenant.industry === "cafe" ? (
         <>
-          <div className="mb-4">
+          <div className="mb-6">
             <h1 className="text-lg font-semibold">Overview</h1>
             <p className="text-muted-foreground text-sm">
               Key metrics and recent activity.
             </p>
           </div>
-          <CafeDashboard orgId={orgId ?? ""} showHeading={false} />
+          <CafeDashboard orgId={orgId ?? ""} showHeading={false} fullWidth />
         </>
       ) : (
-        <TenantOverview />
+        <TenantOverview orgId={orgId ?? ""} />
       )}
     </div>
   );

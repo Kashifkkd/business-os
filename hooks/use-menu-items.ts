@@ -26,6 +26,7 @@ export type CreateMenuItemPayload = {
   stock_quantity?: number | null;
   minimum_stock?: number | null;
   minimum_order?: number | null;
+  inventory_item_id?: string | null;
   dietary_tags?: string[];
   allergens?: string[];
   prep_time_minutes?: number | null;

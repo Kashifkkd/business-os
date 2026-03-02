@@ -84,6 +84,7 @@ export async function PATCH(
   if (body.stock_quantity !== undefined) payload.stock_quantity = body.stock_quantity != null ? Number(body.stock_quantity) : null;
   if (body.minimum_stock !== undefined) payload.minimum_stock = body.minimum_stock != null ? Number(body.minimum_stock) : null;
   if (body.minimum_order !== undefined) payload.minimum_order = body.minimum_order != null ? Math.max(1, Number(body.minimum_order)) : 1;
+  if (body.inventory_item_id !== undefined) payload.inventory_item_id = typeof body.inventory_item_id === "string" && body.inventory_item_id.trim() ? body.inventory_item_id.trim() : null;
   if (body.dietary_tags !== undefined) payload.dietary_tags = Array.isArray(body.dietary_tags) ? body.dietary_tags : [];
   if (body.allergens !== undefined) payload.allergens = Array.isArray(body.allergens) ? body.allergens : [];
   if (body.prep_time_minutes !== undefined) payload.prep_time_minutes = body.prep_time_minutes != null ? Number(body.prep_time_minutes) : null;

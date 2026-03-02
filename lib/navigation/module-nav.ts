@@ -13,6 +13,19 @@ import {
   ListTodo,
   Calendar,
   Table2,
+  Megaphone,
+  Workflow,
+  FolderKanban,
+  FileText,
+  Package,
+  Warehouse,
+  Truck,
+  Receipt,
+  DollarSign,
+  TrendingUp,
+  Landmark,
+  Wallet,
+  ReceiptText,
 } from "lucide-react";
 
 export interface SubNavItem {
@@ -102,6 +115,18 @@ export function getModuleNavConfigForPath(
   basePath: string,
   pathname: string
 ): ModuleNavConfig | null {
+  const inventoryPrefix = `${basePath}/inventory`;
+  if (pathname === inventoryPrefix || pathname.startsWith(inventoryPrefix + "/")) {
+    return getInventoryModuleNav(basePath);
+  }
+  const salesPrefix = `${basePath}/sales`;
+  if (pathname === salesPrefix || pathname.startsWith(salesPrefix + "/")) {
+    return getSalesModuleNav(basePath);
+  }
+  const marketingPrefix = `${basePath}/marketing`;
+  if (pathname === marketingPrefix || pathname.startsWith(marketingPrefix + "/")) {
+    return getMarketingModuleNav(basePath);
+  }
   const leadsPrefix = `${basePath}/leads`;
   if (pathname === leadsPrefix || pathname.startsWith(leadsPrefix + "/")) {
     return getLeadsModuleNav(basePath);
@@ -110,7 +135,125 @@ export function getModuleNavConfigForPath(
   if (pathname === tasksPrefix || pathname.startsWith(tasksPrefix + "/")) {
     return getTasksModuleNav(basePath);
   }
+  const financePrefix = `${basePath}/finance`;
+  if (pathname === financePrefix || pathname.startsWith(financePrefix + "/")) {
+    return getFinanceModuleNav(basePath);
+  }
   return getModuleNavConfig(industry, basePath);
+}
+
+/** Inventory module sub-nav (path-based: shown when user is under /inventory). */
+export function getInventoryModuleNav(basePath: string): ModuleNavConfig {
+  const base = basePath;
+  const inventory = `${base}/inventory`;
+  return {
+    title: "INVENTORY",
+    pathPrefixes: [
+      inventory,
+      `${inventory}/dashboard`,
+      `${inventory}/items`,
+      `${inventory}/item-groups`,
+      `${inventory}/warehouses`,
+      `${inventory}/vendors`,
+      `${inventory}/purchase-orders`,
+      `${inventory}/sales-orders`,
+      `${inventory}/bills`,
+      `${inventory}/picklists`,
+      `${inventory}/packages`,
+      `${inventory}/composite-items`,
+      `${inventory}/reports`,
+    ],
+    items: [
+      { href: `${inventory}/dashboard`, label: "Dashboard", icon: LayoutDashboard },
+      { href: `${inventory}/items`, label: "Items", icon: BookOpen },
+      { href: `${inventory}/item-groups`, label: "Item Groups", icon: Shapes },
+      { href: `${inventory}/warehouses`, label: "Warehouses", icon: Warehouse },
+      { href: `${inventory}/vendors`, label: "Vendors", icon: Truck },
+      { href: `${inventory}/purchase-orders`, label: "Purchase Orders", icon: Receipt },
+      { href: `${inventory}/sales-orders`, label: "Sales Orders", icon: Receipt },
+      { href: `${inventory}/bills`, label: "Bills", icon: FileText },
+      { href: `${inventory}/picklists`, label: "Picklists", icon: ListFilter },
+      { href: `${inventory}/packages`, label: "Packages", icon: Package },
+      { href: `${inventory}/composite-items`, label: "Composite Items", icon: ListTree },
+      { href: `${inventory}/reports`, label: "Reports", icon: BarChart3 },
+    ],
+  };
+}
+
+/** Sales module sub-nav (path-based: shown when user is under /sales). */
+export function getSalesModuleNav(basePath: string): ModuleNavConfig {
+  const base = basePath;
+  const sales = `${base}/sales`;
+  return {
+    title: "SALES",
+    pathPrefixes: [
+      sales,
+      `${sales}/pipeline`,
+      `${sales}/deals`,
+      `${sales}/forecast`,
+      `${sales}/analytics`,
+    ],
+    items: [
+      { href: sales, label: "Overview", icon: LayoutDashboard },
+      { href: `${sales}/pipeline`, label: "Pipeline", icon: LayoutGrid },
+      { href: `${sales}/deals`, label: "Deals", icon: ListFilter },
+      { href: `${sales}/forecast`, label: "Forecast", icon: TrendingUp },
+      { href: `${sales}/analytics`, label: "Analytics", icon: BarChart3 },
+    ],
+  };
+}
+
+/** Finance module sub-nav (path-based: shown when user is under /finance). */
+export function getFinanceModuleNav(basePath: string): ModuleNavConfig {
+  const base = basePath;
+  const finance = `${base}/finance`;
+  return {
+    title: "FINANCE",
+    pathPrefixes: [
+      finance,
+      `${finance}/dashboard`,
+      `${finance}/chart-of-accounts`,
+      `${finance}/invoices`,
+      `${finance}/bills`,
+      `${finance}/expenses`,
+      `${finance}/banking`,
+      `${finance}/reports`,
+    ],
+    items: [
+      { href: `${finance}/dashboard`, label: "Dashboard", icon: LayoutDashboard },
+      { href: `${finance}/chart-of-accounts`, label: "Chart of Accounts", icon: BookOpen },
+      { href: `${finance}/invoices`, label: "Invoices", icon: ReceiptText },
+      { href: `${finance}/bills`, label: "Bills", icon: FileText },
+      { href: `${finance}/expenses`, label: "Expenses", icon: Wallet },
+      { href: `${finance}/banking`, label: "Banking", icon: Landmark },
+      { href: `${finance}/reports`, label: "Reports", icon: BarChart3 },
+    ],
+  };
+}
+
+/** Marketing module sub-nav (path-based: shown when user is under /marketing). */
+export function getMarketingModuleNav(basePath: string): ModuleNavConfig {
+  const base = basePath;
+  const marketing = `${base}/marketing`;
+  return {
+    title: "MARKETING",
+    pathPrefixes: [
+      marketing,
+      `${marketing}/campaigns`,
+      `${marketing}/journeys`,
+      `${marketing}/segments`,
+      `${marketing}/templates`,
+      `${marketing}/analytics`,
+    ],
+    items: [
+      { href: marketing, label: "Overview", icon: Megaphone },
+      { href: `${marketing}/campaigns`, label: "Campaigns", icon: FolderKanban },
+      { href: `${marketing}/journeys`, label: "Journeys", icon: Workflow },
+      { href: `${marketing}/segments`, label: "Segments", icon: ListFilter },
+      { href: `${marketing}/templates`, label: "Templates", icon: FileText },
+      { href: `${marketing}/analytics`, label: "Analytics", icon: BarChart3 },
+    ],
+  };
 }
 
 export function getRealEstateModuleNav(basePath: string): ModuleNavConfig {

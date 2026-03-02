@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTenant } from "@/hooks/use-tenant";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Settings, Utensils, ShoppingBag, Home, List } from "lucide-react";
+import { LayoutDashboard, Settings, Utensils, ShoppingBag, Home, List, Megaphone, DollarSign } from "lucide-react";
 
 export function TenantNav() {
   const { tenant } = useTenant();
@@ -19,13 +19,17 @@ export function TenantNav() {
       ? [
           { href: homeHref, label: "Overview", icon: LayoutDashboard },
           { href: `${base}/menu`, label: "Menu", icon: Utensils },
+          { href: `${base}/sales`, label: "Sales", icon: DollarSign },
           { href: `${base}/orders`, label: "Orders", icon: ShoppingBag },
+          { href: `${base}/marketing`, label: "Marketing", icon: Megaphone },
           { href: `${base}/settings`, label: "Settings", icon: Settings },
         ]
       : [
           { href: homeHref, label: "Overview", icon: LayoutDashboard },
           { href: `${base}/properties`, label: "Properties", icon: Home },
           { href: `${base}/listings`, label: "Listings", icon: List },
+          { href: `${base}/sales`, label: "Sales", icon: DollarSign },
+          { href: `${base}/marketing`, label: "Marketing", icon: Megaphone },
           { href: `${base}/settings`, label: "Settings", icon: Settings },
         ];
 

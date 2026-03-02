@@ -106,6 +106,33 @@ export function MenuItemsTable({
           </span>
         ),
       }),
+      columnHelper.display({
+        id: "stock",
+        header: () => <span className="text-right">Stock</span>,
+        cell: ({ row }) => {
+          const r = row.original;
+          const stock =
+            r.inventory_stock != null
+              ? r.inventory_stock
+              : r.stock_quantity;
+          const minStock =
+            r.inventory_reorder_level != null
+              ? r.inventory_reorder_level
+              : r.minimum_stock;
+          const isLow =
+            minStock != null && stock != null && stock <= minStock;
+          return (
+            <span
+              className={cn(
+                "tabular-nums text-right",
+                isLow && "text-amber-600 font-medium"
+              )}
+            >
+              {stock != null ? String(stock) : "—"}
+            </span>
+          );
+        },
+      }),
       columnHelper.accessor("category", {
         header: "Category",
         cell: (ctx) => (

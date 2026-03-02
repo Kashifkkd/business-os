@@ -24,6 +24,7 @@ import { MenuItemImageUpload } from "./menu-item-image-upload";
 import { ConfirmLeaveDialog } from "@/components/confirm-leave-dialog";
 import { useCreateMenuItem, useUpdateMenuItem } from "@/hooks/use-menu-items";
 import { useMenuCategory } from "@/hooks/use-menu-categories";
+import { useInventoryItemsPaginated } from "@/hooks/use-inventory-items";
 import {
   useMenuSubCategory,
   useMenuSubcategoriesList,
@@ -43,6 +44,7 @@ const menuItemFormSchema = z.object({
   sub_category_id: z.string().optional(),
   food_type: z.enum(["veg", "non_veg"]),
   sku: z.string().optional(),
+  inventory_item_id: z.string().optional(),
   stock_quantity: z.string().optional(),
   minimum_stock: z.string().optional(),
   price: z
@@ -87,6 +89,7 @@ function getDefaultValues(initialItem?: MenuItem | null): MenuItemFormValues {
     sub_category_id: initialItem?.sub_category_id ?? "",
     food_type: initialItem?.food_type === "non_veg" ? "non_veg" : "veg",
     sku: initialItem?.sku ?? "",
+    inventory_item_id: initialItem?.inventory_item_id ?? "",
     stock_quantity:
       initialItem?.stock_quantity != null ? String(initialItem.stock_quantity) : "",
     minimum_stock:
@@ -124,6 +127,8 @@ export function AddMenuForm({ orgId, initialItem }: AddMenuFormProps) {
     categoryId || undefined
   );
   const { data: discounts = [] } = useMenuDiscounts(orgId);
+  const { data: inventoryData } = useInventoryItemsPaginated(orgId, { page: 1, pageSize: 100 });
+  const inventoryItems = inventoryData?.items ?? [];
   const activeDiscounts = useMemo(
     () => discounts.filter((d) => d.is_active),
     [discounts]
@@ -210,6 +215,7 @@ export function AddMenuForm({ orgId, initialItem }: AddMenuFormProps) {
           food_type: values.food_type,
           images: values.images,
           sku: values.sku?.trim() || null,
+          inventory_item_id: values.inventory_item_id?.trim() || null,
           stock_quantity: values.stock_quantity
             ? parseInt(values.stock_quantity, 10)
             : null,
@@ -477,12 +483,12 @@ export function AddMenuForm({ orgId, initialItem }: AddMenuFormProps) {
                 <Card>
                   <CardHeader className="pb-3">
                     <h2 className="text-sm font-semibold text-foreground">
-                      Manage Stock
+                      Stock & Inventory
                     </h2>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="sku">Stock Keeping Item (SKU)</Label>
+                      <Label htmlFor="sku">Stock Keeping Unit (SKU)</Label>
                       <Input
                         id="sku"
                         placeholder="e.g. CFFE-MM-01-A9"
@@ -490,30 +496,60 @@ export function AddMenuForm({ orgId, initialItem }: AddMenuFormProps) {
                         {...form.register("sku")}
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <Label htmlFor="stock">Menu Stock</Label>
-                        <Input
-                          id="stock"
-                          type="number"
-                          min={0}
-                          placeholder="1,000"
-                          className="h-9"
-                          {...form.register("stock_quantity")}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="minStock">Minimum Stock</Label>
-                        <Input
-                          id="minStock"
-                          type="number"
-                          min={0}
-                          placeholder="500"
-                          className="h-9"
-                          {...form.register("minimum_stock")}
-                        />
-                      </div>
+                    <div className="space-y-2">
+                      <Label>Link to Inventory</Label>
+                      <Controller
+                        control={form.control}
+                        name="inventory_item_id"
+                        render={({ field }) => (
+                          <Select
+                            value={field.value || "none"}
+                            onValueChange={(v) => field.onChange(v === "none" ? "" : v)}
+                          >
+                            <SelectTrigger className="h-9 w-full">
+                              <SelectValue placeholder="None (use legacy stock)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">None</SelectItem>
+                              {inventoryItems.map((i) => (
+                                <SelectItem key={i.id} value={i.id}>
+                                  {i.name} {i.sku ? `(${i.sku})` : ""}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                      <p className="text-muted-foreground text-xs">
+                        Link to an inventory item to use centralized stock. Manage items in Inventory module.
+                      </p>
                     </div>
+                    {!form.watch("inventory_item_id") && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <Label htmlFor="stock">Menu Stock</Label>
+                          <Input
+                            id="stock"
+                            type="number"
+                            min={0}
+                            placeholder="1,000"
+                            className="h-9"
+                            {...form.register("stock_quantity")}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="minStock">Minimum Stock</Label>
+                          <Input
+                            id="minStock"
+                            type="number"
+                            min={0}
+                            placeholder="500"
+                            className="h-9"
+                            {...form.register("minimum_stock")}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 

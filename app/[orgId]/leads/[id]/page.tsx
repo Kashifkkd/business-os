@@ -20,7 +20,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Pencil, Trash2, Mail, Phone, MessageSquare } from "lucide-react";
+import { ArrowLeft, Pencil, Trash2, Mail, Phone, MessageSquare, DollarSign } from "lucide-react";
 
 export default function LeadDetailPage() {
   const params = useParams();
@@ -98,6 +98,12 @@ export default function LeadDetailPage() {
           {deleteLead.isError && (
             <p className="w-full text-sm text-destructive sm:w-auto">{deleteLead.error?.message}</p>
           )}
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/${orgId}/sales/deals/new?lead_id=${leadId}`}>
+              <DollarSign className="size-4" />
+              Convert to deal
+            </Link>
+          </Button>
           <Button variant="outline" size="sm" asChild>
             <Link href={`/${orgId}/leads/${leadId}/edit`}>
               <Pencil className="size-4" />

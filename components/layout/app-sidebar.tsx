@@ -13,11 +13,13 @@ import {
   ShoppingBag,
   Home,
   Users,
-  LayoutGrid,
-  DollarSign,
   Megaphone,
-  UserCircle,
   UserPlus,
+  ListTodo,
+  List,
+  Package,
+  DollarSign,
+  Landmark,
 } from "lucide-react";
 
 export function AppSidebar() {
@@ -30,31 +32,47 @@ export function AppSidebar() {
   const base = `/${tenant.id}`;
   const homeHref = `/${tenant.id}/home`;
 
-  const industryNavItems =
+  const primaryNavItems =
     tenant.industry === "cafe"
       ? [
-        { href: homeHref, label: "Overview", icon: LayoutDashboard },
-        { href: `${base}/leads`, label: "Leads", icon: UserPlus },
-        { href: `${base}/menu/items`, label: "Menu Management", icon: Utensils },
-        { href: `${base}/orders`, label: "Order History", icon: ShoppingBag },
-        { href: `${base}/promotions`, label: "Promotions", icon: Megaphone },
-        { href: `${base}/customers`, label: "Customers", icon: UserCircle },
-      ]
-      : [
-        { href: homeHref, label: "Overview", icon: LayoutDashboard },
-        { href: `${base}/leads`, label: "Leads", icon: UserPlus },
-        { href: `${base}/properties`, label: "Properties", icon: Home },
-      ];
+          { href: homeHref, label: "Overview", icon: LayoutDashboard },
+          { href: `${base}/leads`, label: "Leads", icon: UserPlus },
+          { href: `${base}/sales`, label: "Sales", icon: DollarSign },
+          { href: `${base}/tasks`, label: "Tasks", icon: ListTodo },
+          { href: `${base}/menu`, label: "Menu", icon: Utensils },
+          { href: `${base}/orders`, label: "Orders", icon: ShoppingBag },
+          { href: `${base}/marketing`, label: "Marketing", icon: Megaphone },
+        ]
+      : tenant.industry === "real_estate"
+        ? [
+            { href: homeHref, label: "Overview", icon: LayoutDashboard },
+            { href: `${base}/leads`, label: "Leads", icon: UserPlus },
+            { href: `${base}/sales`, label: "Sales", icon: DollarSign },
+            { href: `${base}/tasks`, label: "Tasks", icon: ListTodo },
+            { href: `${base}/properties`, label: "Properties", icon: Home },
+            { href: `${base}/listings`, label: "Listings", icon: List },
+            { href: `${base}/marketing`, label: "Marketing", icon: Megaphone },
+          ]
+        : [
+            { href: homeHref, label: "Overview", icon: LayoutDashboard },
+            { href: `${base}/leads`, label: "Leads", icon: UserPlus },
+            { href: `${base}/sales`, label: "Sales", icon: DollarSign },
+            { href: `${base}/tasks`, label: "Tasks", icon: ListTodo },
+            { href: `${base}/marketing`, label: "Marketing", icon: Megaphone },
+          ];
 
   const managementItems = [
-    { href: `${base}/staff`, label: "Staff Roster", icon: Users },
-    { href: `${base}/table-layout`, label: "Table Layout", icon: LayoutGrid },
-    { href: `${base}/financials`, label: "Financials", icon: DollarSign },
+    { href: `${base}/inventory`, label: "Inventory", icon: Package },
+    { href: `${base}/finance`, label: "Finance", icon: Landmark },
+    { href: `${base}/staff`, label: "Staff", icon: Users },
   ];
 
   const isActive = (href: string) =>
     pathname === href || (href !== base && pathname.startsWith(href));
   const isMenuActive = pathname.startsWith(`${base}/menu`);
+  const isMarketingActive = pathname.startsWith(`${base}/marketing`);
+  const isInventoryActive = pathname.startsWith(`${base}/inventory`);
+  const isFinanceActive = pathname.startsWith(`${base}/finance`);
   const isSettingsActive = pathname.startsWith(`${base}/settings`);
 
   const navButtonClass = (active: boolean) =>
@@ -83,12 +101,16 @@ export function AppSidebar() {
         <div className="flex flex-1 flex-col overflow-hidden p-1">
           <nav className="flex-1 space-y-1 overflow-y-auto">
 
-          {industryNavItems.map(({ href, label, icon: Icon }) => (
+            {primaryNavItems.map(({ href, label, icon: Icon }) => (
               <Link key={href} href={href}>
                 <Button
                   variant="ghost"
                   className={navButtonClass(
-                    href.includes("/menu") ? isMenuActive : isActive(href)
+                    href.includes("/menu")
+                      ? isMenuActive
+                      : href.includes("/marketing")
+                        ? isMarketingActive
+                        : isActive(href)
                   )}
                 >
                   <Icon className="size-4 shrink-0" />
@@ -99,7 +121,12 @@ export function AppSidebar() {
 
             {managementItems.map(({ href, label, icon: Icon }) => (
               <Link key={href} href={href}>
-                <Button variant="ghost" className={navButtonClass(isActive(href))}>
+                <Button
+                  variant="ghost"
+                  className={navButtonClass(
+                    href.includes("/inventory") ? isInventoryActive : href.includes("/finance") ? isFinanceActive : isActive(href)
+                  )}
+                >
                   <Icon className="size-4 shrink-0" />
                   <span className="truncate text-sm">{label}</span>
                 </Button>
@@ -127,16 +154,20 @@ export function AppSidebar() {
       {/* Collapsed icon-only rail (always visible) */}
       <nav className="flex flex-1 flex-col p-1">
         <div className="space-y-1">
-          {industryNavItems.map(({ href, label, icon: Icon }) => (
+          {primaryNavItems.map(({ href, label, icon: Icon }) => (
             <Link key={href} href={href} title={label}>
               <Button
                 variant="ghost"
                 size="icon"
                 className={cn(
                   "flex items-center justify-center relative h-10 w-12 shrink-0 cursor-pointer shadow-none transition-colors",
-                  (href.includes("/menu") ? isMenuActive : isActive(href))
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "bg-transparent hover:bg-sidebar-accent/50 text-muted-foreground hover:text-sidebar-accent-foreground"
+                  (href.includes("/menu")
+                    ? isMenuActive
+                    : href.includes("/marketing")
+                      ? isMarketingActive
+                      : isActive(href))
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                      : "bg-transparent hover:bg-sidebar-accent/50 text-muted-foreground hover:text-sidebar-accent-foreground"
                 )}
               >
                 <Icon className="size-4" />
@@ -152,13 +183,13 @@ export function AppSidebar() {
                 size="icon"
                 className={cn(
                   "relative h-10 w-12 shrink-0 cursor-pointer shadow-none transition-colors",
-                  isActive(href)
+                  href.includes("/inventory") ? isInventoryActive : href.includes("/finance") ? isFinanceActive : isActive(href)
                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
                     : "bg-transparent hover:bg-sidebar-accent/50 text-muted-foreground hover:text-sidebar-accent-foreground"
                 )}
               >
                 <Icon className="size-4" />
-                {isActive(href) && (
+                {(href.includes("/inventory") ? isInventoryActive : href.includes("/finance") ? isFinanceActive : isActive(href)) && (
                   <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-r bg-sidebar-primary" />
                 )}
               </Button>

@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import { useTenant } from "@/hooks/use-tenant";
 import { TenantOverview } from "../tenant-overview";
 import { CafeDashboard } from "@/components/dashboard/cafe-dashboard";
+import { RealEstateDashboard } from "@/components/dashboard/real-estate-dashboard";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function OrgHomePage() {
@@ -38,6 +39,8 @@ export default function OrgHomePage() {
           </div>
           <CafeDashboard orgId={orgId ?? ""} showHeading={false} fullWidth />
         </>
+      ) : tenant.industry === "real_estate" ? (
+        <RealEstateDashboard orgId={orgId ?? ""} />
       ) : (
         <TenantOverview orgId={orgId ?? ""} />
       )}

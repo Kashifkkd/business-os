@@ -113,6 +113,7 @@ export const queryKeys = {
   space: (orgId: string, spaceId: string) => ["orgs", orgId, "spaces", spaceId] as const,
   spaceLists: (orgId: string, spaceId: string) => ["orgs", orgId, "spaces", spaceId, "lists"] as const,
   spaceStatuses: (orgId: string, spaceId: string) => ["orgs", orgId, "spaces", spaceId, "statuses"] as const,
+  spaceLabels: (orgId: string, spaceId: string) => ["orgs", orgId, "spaces", spaceId, "labels"] as const,
   tasks: (
     orgId: string,
     params: {
@@ -146,6 +147,78 @@ export const queryKeys = {
   task: (orgId: string, taskId: string) => ["orgs", orgId, "tasks", taskId] as const,
   taskComments: (orgId: string, taskId: string) => ["orgs", orgId, "tasks", taskId, "comments"] as const,
   taskActivities: (orgId: string, taskId: string) => ["orgs", orgId, "tasks", taskId, "activities"] as const,
+  // Inventory module
+  inventoryItems: (orgId: string, params: { page: number; pageSize: number; search?: string }) =>
+    ["orgs", orgId, "inventory", "items", params.page, params.pageSize, params.search ?? ""] as const,
+  inventoryItem: (orgId: string, itemId: string) => ["orgs", orgId, "inventory", "items", itemId] as const,
+  inventoryItemGroups: (orgId: string) => ["orgs", orgId, "inventory", "item-groups"] as const,
+  inventoryItemGroup: (orgId: string, groupId: string) => ["orgs", orgId, "inventory", "item-groups", groupId] as const,
+  warehouses: (orgId: string) => ["orgs", orgId, "inventory", "warehouses"] as const,
+  warehouse: (orgId: string, warehouseId: string) => ["orgs", orgId, "inventory", "warehouses", warehouseId] as const,
+  vendors: (orgId: string) => ["orgs", orgId, "inventory", "vendors"] as const,
+  vendor: (orgId: string, vendorId: string) => ["orgs", orgId, "inventory", "vendors", vendorId] as const,
+  inventoryAnalytics: (orgId: string) => ["orgs", orgId, "inventory", "analytics"] as const,
+  // Sales module
+  salesPipelineStages: (orgId: string) => ["orgs", orgId, "sales", "pipeline-stages"] as const,
+  deals: (
+    orgId: string,
+    params: {
+      page: number;
+      pageSize: number;
+      search?: string;
+      stage_id?: string;
+      owner_id?: string;
+      lead_id?: string;
+      created_after?: string;
+      created_before?: string;
+      sortBy?: string;
+      order?: string;
+    }
+  ) =>
+    [
+      "orgs",
+      orgId,
+      "sales",
+      "deals",
+      params.page,
+      params.pageSize,
+      params.search ?? "",
+      params.stage_id ?? "",
+      params.owner_id ?? "",
+      params.lead_id ?? "",
+      params.created_after ?? "",
+      params.created_before ?? "",
+      params.sortBy ?? "created_at",
+      params.order ?? "desc",
+    ] as const,
+  deal: (orgId: string, dealId: string) => ["orgs", orgId, "sales", "deals", dealId] as const,
+  dealActivities: (orgId: string, dealId: string) => ["orgs", orgId, "sales", "deals", dealId, "activities"] as const,
+  salesStats: (orgId: string) => ["orgs", orgId, "sales", "stats"] as const,
+  salesForecast: (orgId: string) => ["orgs", orgId, "sales", "forecast"] as const,
+  salesAnalytics: (orgId: string) => ["orgs", orgId, "sales", "analytics"] as const,
+  // Finance module
+  financeAccounts: (orgId: string, params: { page: number; pageSize: number; search?: string; type?: string }) =>
+    ["orgs", orgId, "finance", "accounts", params.page, params.pageSize, params.search ?? "", params.type ?? ""] as const,
+  financeAccount: (orgId: string, accountId: string) => ["orgs", orgId, "finance", "accounts", accountId] as const,
+  financeJournalEntries: (orgId: string, params: { page: number; pageSize: number; status?: string }) =>
+    ["orgs", orgId, "finance", "journal-entries", params.page, params.pageSize, params.status ?? ""] as const,
+  financeJournalEntry: (orgId: string, entryId: string) => ["orgs", orgId, "finance", "journal-entries", entryId] as const,
+  financeInvoices: (orgId: string, params: { page: number; pageSize: number; status?: string }) =>
+    ["orgs", orgId, "finance", "invoices", params.page, params.pageSize, params.status ?? ""] as const,
+  financeInvoice: (orgId: string, invoiceId: string) => ["orgs", orgId, "finance", "invoices", invoiceId] as const,
+  financeBills: (orgId: string, params: { page: number; pageSize: number; status?: string }) =>
+    ["orgs", orgId, "finance", "bills", params.page, params.pageSize, params.status ?? ""] as const,
+  financeBill: (orgId: string, billId: string) => ["orgs", orgId, "finance", "bills", billId] as const,
+  financeExpenses: (orgId: string, params: { page: number; pageSize: number; status?: string }) =>
+    ["orgs", orgId, "finance", "expenses", params.page, params.pageSize, params.status ?? ""] as const,
+  financeExpense: (orgId: string, expenseId: string) => ["orgs", orgId, "finance", "expenses", expenseId] as const,
+  financeBankAccounts: (orgId: string, params: { page: number; pageSize: number }) =>
+    ["orgs", orgId, "finance", "bank-accounts", params.page, params.pageSize] as const,
+  financeBankAccount: (orgId: string, accountId: string) => ["orgs", orgId, "finance", "bank-accounts", accountId] as const,
+  financeReportTrialBalance: (orgId: string, from: string, to: string) => ["orgs", orgId, "finance", "reports", "trial-balance", from, to] as const,
+  financeReportPnL: (orgId: string, from: string, to: string) => ["orgs", orgId, "finance", "reports", "pnl", from, to] as const,
+  financeReportBalanceSheet: (orgId: string, asOf: string) => ["orgs", orgId, "finance", "reports", "balance-sheet", asOf] as const,
+  financeReportCashFlow: (orgId: string, from: string, to: string) => ["orgs", orgId, "finance", "reports", "cash-flow", from, to] as const,
 };
 
 // ——— Profile (auth / me) ———

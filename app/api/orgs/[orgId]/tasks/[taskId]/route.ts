@@ -9,7 +9,7 @@ const TASK_SELECT =
 
 const TASK_SELECT_WITH_RELATIONS = `
   id, tenant_id, space_id, list_id, parent_id, status_id, title, description, priority, due_date, start_date, sort_order, custom_fields, metadata, created_at, updated_at,
-  task_statuses(name, type),
+  task_statuses(name, type, color),
   task_lists(name),
   task_spaces(name)
 `;
@@ -24,7 +24,7 @@ async function getTaskWithRelations(
     .eq("id", taskId)
     .single();
   if (!row) return null;
-  const statuses = row.task_statuses as { name?: string; type?: string } | null;
+  const statuses = row.task_statuses as { name?: string; type?: string; color?: string | null } | null;
   const lists = row.task_lists as { name?: string } | null;
   const spaces = row.task_spaces as { name?: string } | null;
   const { task_statuses, task_lists, task_spaces, ...rest } = row;
@@ -32,11 +32,25 @@ async function getTaskWithRelations(
     ...rest,
     status_name: statuses?.name ?? null,
     status_type: statuses?.type ?? null,
+    status_color: statuses?.color ?? null,
     list_name: lists?.name ?? null,
     space_name: spaces?.name ?? null,
   } as Task;
   const { data: assignees } = await supabase.from("task_assignees").select("user_id").eq("task_id", taskId);
   task.assignee_ids = (assignees ?? []).map((a: { user_id: string }) => a.user_id);
+  const { data: taskLabelRows } = await supabase
+    .from("task_task_labels")
+    .select("label_id")
+    .eq("task_id", taskId);
+  const labelIds = (taskLabelRows ?? []).map((r: { label_id: string }) => r.label_id);
+  if (labelIds.length > 0) {
+    const { data: labels } = await supabase
+      .from("task_labels")
+      .select("id, tenant_id, space_id, name, color, sort_order, created_at, updated_at")
+      .in("id", labelIds);
+    task.label_ids = labelIds;
+    task.labels = labels ?? [];
+  }
   const { count } = await supabase
     .from("tasks")
     .select("id", { count: "exact", head: true })
@@ -98,6 +112,7 @@ export type UpdateTaskBody = Partial<{
   sort_order: number;
   custom_fields: Record<string, unknown>;
   assignee_ids: string[];
+  label_ids: string[];
 }>;
 
 export async function PATCH(
@@ -187,6 +202,14 @@ export async function PATCH(
     const ids = body.assignee_ids.filter((id): id is string => typeof id === "string");
     if (ids.length > 0) {
       await supabase.from("task_assignees").insert(ids.map((user_id) => ({ task_id: taskId, user_id })));
+    }
+  }
+
+  if (Array.isArray(body.label_ids)) {
+    await supabase.from("task_task_labels").delete().eq("task_id", taskId);
+    const ids = body.label_ids.filter((id): id is string => typeof id === "string");
+    if (ids.length > 0) {
+      await supabase.from("task_task_labels").insert(ids.map((label_id) => ({ task_id: taskId, label_id })));
     }
   }
 

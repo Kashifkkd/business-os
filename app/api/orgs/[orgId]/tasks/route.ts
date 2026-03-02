@@ -9,7 +9,7 @@ const TASK_SELECT =
 
 const TASK_SELECT_WITH_RELATIONS = `
   id, tenant_id, space_id, list_id, parent_id, status_id, title, description, priority, due_date, start_date, sort_order, custom_fields, metadata, created_at, updated_at,
-  task_statuses(name, type),
+  task_statuses(name, type, color),
   task_lists(name)
 `;
 
@@ -47,6 +47,9 @@ export async function GET(
   const order = searchParams.get("order")?.toLowerCase() === "asc" ? "asc" : "desc";
   const page = Math.max(1, Number(searchParams.get("page")) || 1);
   const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize")) || 20));
+  const dueAfter = searchParams.get("due_after")?.trim() || undefined;
+  const dueBefore = searchParams.get("due_before")?.trim() || undefined;
+  const enrich = searchParams.get("enrich")?.trim() || "";
 
   if (!spaceId) {
     return NextResponse.json(apiError(API_ERROR_CODES.VALIDATION_ERROR, "space_id is required"), { status: 400 });
@@ -89,6 +92,12 @@ export async function GET(
     const term = `%${search}%`;
     query = query.or(`title.ilike.${term},description.ilike.${term}`);
   }
+  if (dueAfter) {
+    query = query.gte("due_date", dueAfter);
+  }
+  if (dueBefore) {
+    query = query.lte("due_date", dueBefore);
+  }
 
   const { data: rows, error, count } = await query;
 
@@ -96,20 +105,74 @@ export async function GET(
     return NextResponse.json(apiError(API_ERROR_CODES.BAD_REQUEST, error.message), { status: 400 });
   }
 
+  const taskIds = (rows ?? []).map((r: Record<string, unknown>) => r.id as string);
   const items = normalizeTasks(rows ?? []);
+
+  const shouldEnrichAssignees = enrich.includes("assignees");
+  const shouldEnrichLabels = enrich.includes("labels");
+  if (taskIds.length > 0 && (shouldEnrichAssignees || shouldEnrichLabels)) {
+    if (shouldEnrichAssignees) {
+      const { data: assigneeRows } = await supabase
+        .from("task_assignees")
+        .select("task_id, user_id")
+        .in("task_id", taskIds);
+      const byTask = new Map<string, string[]>();
+      for (const a of assigneeRows ?? []) {
+        const arr = byTask.get(a.task_id) ?? [];
+        arr.push(a.user_id);
+        byTask.set(a.task_id, arr);
+      }
+      for (const item of items) {
+        item.assignee_ids = byTask.get(item.id) ?? [];
+      }
+    }
+    if (shouldEnrichLabels) {
+      const { data: taskLabelRows } = await supabase
+        .from("task_task_labels")
+        .select("task_id, label_id")
+        .in("task_id", taskIds);
+      const labelIds = [...new Set((taskLabelRows ?? []).map((r: { label_id: string }) => r.label_id))];
+      const labelMap = new Map<string, { id: string; name: string; color: string | null }>();
+      if (labelIds.length > 0) {
+        const { data: labels } = await supabase
+          .from("task_labels")
+          .select("id, name, color")
+          .in("id", labelIds);
+        for (const l of labels ?? []) {
+          labelMap.set(l.id, { id: l.id, name: l.name, color: l.color ?? null });
+        }
+      }
+      const byTask = new Map<string, { id: string; name: string; color: string | null }[]>();
+      for (const r of taskLabelRows ?? []) {
+        const lab = labelMap.get(r.label_id);
+        if (lab) {
+          const arr = byTask.get(r.task_id) ?? [];
+          arr.push(lab);
+          byTask.set(r.task_id, arr);
+        }
+      }
+      for (const item of items) {
+        const labs = byTask.get(item.id) ?? [];
+        item.label_ids = labs.map((l) => l.id);
+        item.labels = labs.map((l) => ({ ...l, tenant_id: orgId, space_id: null, sort_order: 0, created_at: "", updated_at: "" }));
+      }
+    }
+  }
+
   const total = count ?? 0;
   return NextResponse.json(apiSuccess({ items, total, page, pageSize }, total));
 }
 
 function normalizeTasks(rows: Record<string, unknown>[]): Task[] {
   return rows.map((r) => {
-    const statuses = r.task_statuses as { name?: string; type?: string } | null;
+    const statuses = r.task_statuses as { name?: string; type?: string; color?: string | null } | null;
     const lists = r.task_lists as { name?: string } | null;
     const { task_statuses, task_lists, ...rest } = r;
     return {
       ...rest,
       status_name: statuses?.name ?? null,
       status_type: statuses?.type ?? null,
+      status_color: statuses?.color ?? null,
       list_name: lists?.name ?? null,
     } as Task;
   });
@@ -127,6 +190,7 @@ export type CreateTaskBody = {
   start_date?: string | null;
   sort_order?: number;
   assignee_ids?: string[];
+  label_ids?: string[];
 };
 
 /** POST create a task. Ensures space/list belong to org; uses first org status if status_id not provided. */
@@ -233,6 +297,13 @@ export async function POST(
   if (assigneeIds.length > 0) {
     await supabase.from("task_assignees").insert(
       assigneeIds.map((user_id) => ({ task_id: task.id, user_id }))
+    );
+  }
+
+  const labelIds = Array.isArray(body.label_ids) ? body.label_ids.filter((id): id is string => typeof id === "string") : [];
+  if (labelIds.length > 0) {
+    await supabase.from("task_task_labels").insert(
+      labelIds.map((label_id) => ({ task_id: task.id, label_id }))
     );
   }
 

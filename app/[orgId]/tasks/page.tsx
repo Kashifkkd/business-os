@@ -1,17 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useSpaces, useCreateSpace } from "@/hooks/use-tasks";
+import { useSpaces } from "@/hooks/use-tasks";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -22,15 +15,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ListTodo, Plus, FolderKanban } from "lucide-react";
+import { Plus, FolderKanban } from "lucide-react";
+import { useState } from "react";
+import { useCreateSpace } from "@/hooks/use-tasks";
 
 export default function TasksPage() {
   const params = useParams();
-  const searchParams = useSearchParams();
   const router = useRouter();
   const orgId = params?.orgId as string;
   const base = `/${orgId}`;
-  const spaceId = searchParams.get("space_id") ?? "";
 
   const [newSpaceName, setNewSpaceName] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -38,12 +31,14 @@ export default function TasksPage() {
   const { data: spaces, isLoading: spacesLoading } = useSpaces(orgId);
   const createSpace = useCreateSpace(orgId);
 
-  const setSpace = (id: string) => {
-    const next = new URLSearchParams(searchParams.toString());
-    if (id) next.set("space_id", id);
-    else next.delete("space_id");
-    router.push(`${base}/tasks?${next.toString()}`);
-  };
+  const hasSpaces = spaces && spaces.length > 0;
+  const firstSpaceId = spaces?.[0]?.id;
+
+  useEffect(() => {
+    if (hasSpaces && firstSpaceId) {
+      router.replace(`${base}/tasks/list?space_id=${firstSpaceId}`);
+    }
+  }, [base, firstSpaceId, hasSpaces, router]);
 
   const handleCreateSpace = async () => {
     const name = newSpaceName.trim();
@@ -52,9 +47,9 @@ export default function TasksPage() {
       const space = await createSpace.mutateAsync({ name });
       setNewSpaceName("");
       setCreateOpen(false);
-      setSpace(space.id);
+      router.replace(`${base}/tasks/list?space_id=${space.id}`);
     } catch {
-      // error toast could go here
+      // Error feedback can be added with toast
     }
   };
 
@@ -66,10 +61,6 @@ export default function TasksPage() {
       </div>
     );
   }
-
-  const hasSpaces = spaces && spaces.length > 0;
-  const selectedSpace = hasSpaces && spaceId ? spaces.find((s) => s.id === spaceId) : spaces?.[0];
-  const effectiveSpaceId = spaceId || selectedSpace?.id;
 
   if (!hasSpaces) {
     return (
@@ -122,53 +113,5 @@ export default function TasksPage() {
     );
   }
 
-  if (!effectiveSpaceId) {
-    setSpace(spaces![0].id);
-    return null;
-  }
-
-  return (
-    <div className="flex flex-col gap-4 p-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <Select
-            value={effectiveSpaceId}
-            onValueChange={(v) => setSpace(v)}
-          >
-            <SelectTrigger className="w-[220px]">
-              <SelectValue placeholder="Select project" />
-            </SelectTrigger>
-            <SelectContent>
-              {spaces!.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`${base}/tasks/list?space_id=${effectiveSpaceId}`}>
-              <ListTodo className="mr-2 size-4" />
-              List
-            </Link>
-          </Button>
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`${base}/tasks/board?space_id=${effectiveSpaceId}`}>
-              Board
-            </Link>
-          </Button>
-        </div>
-        <Button asChild>
-          <Link href={`${base}/tasks/new?space_id=${effectiveSpaceId}`}>
-            <Plus className="mr-2 size-4" />
-            New task
-          </Link>
-        </Button>
-      </div>
-      <p className="text-sm text-muted-foreground">
-        Select a view above or go to <Link href={`${base}/tasks/list?space_id=${effectiveSpaceId}`} className="underline">List</Link> or{" "}
-        <Link href={`${base}/tasks/board?space_id=${effectiveSpaceId}`} className="underline">Board</Link>.
-      </p>
-    </div>
-  );
+  return null;
 }

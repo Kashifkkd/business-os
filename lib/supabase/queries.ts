@@ -1,6 +1,17 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
-import type { IndustryType, Listing, MenuItem, Profile, Property, TenantRole } from "@/lib/supabase/types";
+import type {
+  IndustryType,
+  Listing,
+  MenuItem,
+  Profile,
+  Property,
+  TenantRole,
+  InventoryItem,
+  InventoryItemGroup,
+  Warehouse,
+  Vendor,
+} from "@/lib/supabase/types";
 
 export interface TenantWithRole {
   id: string;
@@ -134,7 +145,7 @@ export async function getMenuItemById(
   const { data: row, error } = await supabase
     .from("menu_items")
     .select(
-      "id, tenant_id, name, description, long_description, price, discounted_price, sub_category_id, food_type, images, sort_order, is_active, dietary_tags, allergens, prep_time_minutes, sku, unit, stock_quantity, minimum_stock, minimum_order, deleted_at, created_at, updated_at"
+      "id, tenant_id, name, description, long_description, price, discounted_price, sub_category_id, food_type, images, sort_order, is_active, dietary_tags, allergens, prep_time_minutes, sku, unit, stock_quantity, minimum_stock, minimum_order, inventory_item_id, deleted_at, created_at, updated_at"
     )
     .eq("tenant_id", tenantId)
     .eq("id", itemId)
@@ -142,7 +153,16 @@ export async function getMenuItemById(
     .single();
 
   if (error || !row) return null;
-  const item = row as MenuItem & { sub_category_id?: string | null };
+  const item = row as MenuItem & { sub_category_id?: string | null; inventory_item_id?: string | null };
+  if (item.inventory_item_id) {
+    const [{ data: levels }, { data: invRow }] = await Promise.all([
+      supabase.from("inventory_stock_levels").select("quantity").eq("item_id", item.inventory_item_id),
+      supabase.from("inventory_items").select("reorder_level").eq("id", item.inventory_item_id).single(),
+    ]);
+    const total = (levels ?? []).reduce((s, l) => s + Number(l.quantity ?? 0), 0);
+    (item as MenuItem & { inventory_stock?: number; inventory_reorder_level?: number | null }).inventory_stock = total;
+    (item as MenuItem & { inventory_reorder_level?: number | null }).inventory_reorder_level = invRow?.reorder_level ?? null;
+  }
   if (item.sub_category_id) {
     const { data: sc } = await supabase
       .from("menu_sub_categories")
@@ -304,7 +324,7 @@ export interface GetMenuItemsPaginatedResult {
 }
 
 const MENU_ITEMS_SELECT =
-  "id, tenant_id, name, description, long_description, price, discounted_price, sub_category_id, food_type, images, sort_order, is_active, dietary_tags, allergens, prep_time_minutes, sku, unit, stock_quantity, minimum_stock, minimum_order, deleted_at, created_at, updated_at";
+  "id, tenant_id, name, description, long_description, price, discounted_price, sub_category_id, food_type, images, sort_order, is_active, dietary_tags, allergens, prep_time_minutes, sku, unit, stock_quantity, minimum_stock, minimum_order, inventory_item_id, deleted_at, created_at, updated_at";
 
 export async function getMenuItemsPaginated(
   tenantId: string,
@@ -346,11 +366,358 @@ export async function getMenuItemsPaginated(
   const total = count ?? 0;
   const rawItems = (rows ?? []) as MenuItemRow[];
   const items = await enrichMenuItemsWithCategoryNames(supabase, rawItems);
+  const itemsWithStock = await enrichMenuItemsWithInventoryStock(supabase, items);
   return {
-    items,
+    items: itemsWithStock,
     total,
     page,
     pageSize,
+  };
+}
+
+async function enrichMenuItemsWithInventoryStock(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  items: MenuItem[]
+): Promise<MenuItem[]> {
+  const invIds = [...new Set(items.map((i) => i.inventory_item_id).filter(Boolean) as string[])];
+  if (invIds.length === 0) return items;
+
+  const [{ data: levels }, { data: invItems }] = await Promise.all([
+    supabase.from("inventory_stock_levels").select("item_id, quantity").in("item_id", invIds),
+    supabase.from("inventory_items").select("id, reorder_level").in("id", invIds),
+  ]);
+
+  const stockByItem = new Map<string, number>();
+  for (const l of levels ?? []) {
+    stockByItem.set(l.item_id, (stockByItem.get(l.item_id) ?? 0) + Number(l.quantity ?? 0));
+  }
+  const reorderByItem = new Map((invItems ?? []).map((r) => [r.id, r.reorder_level]));
+
+  return items.map((i) => {
+    if (!i.inventory_item_id) return i;
+    const stock = stockByItem.get(i.inventory_item_id) ?? 0;
+    const reorder = reorderByItem.get(i.inventory_item_id) ?? null;
+    return { ...i, inventory_stock: stock, inventory_reorder_level: reorder } as MenuItem;
+  });
+}
+
+// ——— Inventory: items (server-side helpers for API / dashboards) ———
+
+export interface GetInventoryItemsParams {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+}
+
+export interface GetInventoryItemsResult {
+  items: InventoryItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export async function getInventoryItems(
+  tenantId: string,
+  params: GetInventoryItemsParams = {}
+): Promise<GetInventoryItemsResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { items: [], total: 0, page: 1, pageSize: 10 };
+  }
+
+  const page = Math.max(1, params.page ?? 1);
+  const pageSize = Math.min(100, Math.max(1, params.pageSize ?? 10));
+  const search = (params.search ?? "").trim();
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  let query = supabase
+    .from("inventory_items")
+    .select(
+      "id, tenant_id, group_id, name, sku, description, unit, is_active, reorder_level, cost, selling_price, tax_rate, metadata, created_at, updated_at",
+      { count: "exact" }
+    )
+    .eq("tenant_id", tenantId)
+    .order("name");
+
+  if (search) {
+    const term = `%${search}%`;
+    query = query.or(`name.ilike.${term},sku.ilike.${term},description.ilike.${term}`);
+  }
+
+  const { data: rows, error, count } = await query.range(from, to);
+
+  if (error) {
+    return { items: [], total: 0, page, pageSize };
+  }
+
+  return {
+    items: (rows ?? []) as InventoryItem[],
+    total: count ?? 0,
+    page,
+    pageSize,
+  };
+}
+
+export async function getInventoryItemById(
+  tenantId: string,
+  itemId: string
+): Promise<InventoryItem | null> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data: row, error } = await supabase
+    .from("inventory_items")
+    .select(
+      "id, tenant_id, group_id, name, sku, description, unit, is_active, reorder_level, cost, selling_price, tax_rate, metadata, created_at, updated_at"
+    )
+    .eq("tenant_id", tenantId)
+    .eq("id", itemId)
+    .single();
+
+  if (error || !row) return null;
+  return row as InventoryItem;
+}
+
+// ——— Inventory: item groups ———
+
+export async function getInventoryItemGroups(tenantId: string): Promise<InventoryItemGroup[]> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data: rows, error } = await supabase
+    .from("inventory_item_groups")
+    .select("id, tenant_id, name, description, sort_order, created_at, updated_at")
+    .eq("tenant_id", tenantId)
+    .order("sort_order")
+    .order("name");
+
+  if (error || !rows) return [];
+  return rows as InventoryItemGroup[];
+}
+
+// ——— Inventory: warehouses ———
+
+export async function getWarehouses(tenantId: string): Promise<Warehouse[]> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data: rows, error } = await supabase
+    .from("warehouses")
+    .select(
+      "id, tenant_id, name, code, is_default, address_line_1, address_line_2, city, state_or_province, postal_code, country, created_at, updated_at"
+    )
+    .eq("tenant_id", tenantId)
+    .order("name");
+
+  if (error || !rows) return [];
+  return rows as Warehouse[];
+}
+
+export async function getWarehouseById(
+  tenantId: string,
+  warehouseId: string
+): Promise<Warehouse | null> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data: row, error } = await supabase
+    .from("warehouses")
+    .select(
+      "id, tenant_id, name, code, is_default, address_line_1, address_line_2, city, state_or_province, postal_code, country, created_at, updated_at"
+    )
+    .eq("tenant_id", tenantId)
+    .eq("id", warehouseId)
+    .single();
+
+  if (error || !row) return null;
+  return row as Warehouse;
+}
+
+// ——— Inventory: vendors ———
+
+export async function getVendors(tenantId: string): Promise<Vendor[]> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data: rows, error } = await supabase
+    .from("vendors")
+    .select(
+      "id, tenant_id, name, email, phone, address_line_1, address_line_2, city, state_or_province, postal_code, country, payment_terms, notes, created_at, updated_at"
+    )
+    .eq("tenant_id", tenantId)
+    .order("name");
+
+  if (error || !rows) return [];
+  return rows as Vendor[];
+}
+
+export async function getVendorById(
+  tenantId: string,
+  vendorId: string
+): Promise<Vendor | null> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data: row, error } = await supabase
+    .from("vendors")
+    .select(
+      "id, tenant_id, name, email, phone, address_line_1, address_line_2, city, state_or_province, postal_code, country, payment_terms, notes, created_at, updated_at"
+    )
+    .eq("tenant_id", tenantId)
+    .eq("id", vendorId)
+    .single();
+
+  if (error || !row) return null;
+  return row as Vendor;
+}
+
+// ——— Inventory: analytics ———
+
+export interface InventoryAnalytics {
+  total_items: number;
+  low_stock_count: number;
+  total_stock_value: number;
+  recent_movements: Array<{
+    id: string;
+    item_id: string;
+    item_name: string;
+    warehouse_id: string;
+    warehouse_name: string;
+    quantity: number;
+    movement_type: string;
+    created_at: string;
+  }>;
+  low_stock_items: Array<{
+    id: string;
+    name: string;
+    sku: string | null;
+    reorder_level: number | null;
+    total_quantity: number;
+  }>;
+}
+
+export async function getInventoryAnalytics(
+  tenantId: string
+): Promise<InventoryAnalytics> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return {
+      total_items: 0,
+      low_stock_count: 0,
+      total_stock_value: 0,
+      recent_movements: [],
+      low_stock_items: [],
+    };
+  }
+
+  const { count: totalItems } = await supabase
+    .from("inventory_items")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true);
+
+  const { data: items } = await supabase
+    .from("inventory_items")
+    .select("id, name, sku, reorder_level, cost")
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true);
+
+  const { data: stockLevels } = await supabase
+    .from("inventory_stock_levels")
+    .select("item_id, quantity")
+    .eq("tenant_id", tenantId);
+
+  const itemMap = new Map(
+    (items ?? []).map((i) => [i.id, { name: i.name, sku: i.sku, reorder_level: i.reorder_level, cost: i.cost ?? 0 }])
+  );
+
+  let totalStockValue = 0;
+  const qtyByItem = new Map<string, number>();
+
+  for (const sl of stockLevels ?? []) {
+    const qty = Number(sl.quantity) ?? 0;
+    const item = itemMap.get(sl.item_id);
+    if (item) totalStockValue += qty * item.cost;
+    qtyByItem.set(sl.item_id, (qtyByItem.get(sl.item_id) ?? 0) + qty);
+  }
+
+  const lowStockItems: InventoryAnalytics["low_stock_items"] = [];
+  for (const [itemId, totalQty] of qtyByItem) {
+    const item = itemMap.get(itemId);
+    if (!item) continue;
+    if (item.reorder_level != null && totalQty <= item.reorder_level) {
+      lowStockItems.push({
+        id: itemId,
+        name: item.name,
+        sku: item.sku,
+        reorder_level: item.reorder_level,
+        total_quantity: totalQty,
+      });
+    }
+  }
+
+  const { data: movements } = await supabase
+    .from("inventory_stock_movements")
+    .select("id, item_id, warehouse_id, quantity, movement_type, created_at")
+    .eq("tenant_id", tenantId)
+    .order("created_at", { ascending: false })
+    .limit(10);
+
+  const itemIds = [...new Set((movements ?? []).map((m) => m.item_id))];
+  const whIds = [...new Set((movements ?? []).map((m) => m.warehouse_id))];
+
+  const { data: itemRows } = itemIds.length
+    ? await supabase.from("inventory_items").select("id, name").in("id", itemIds)
+    : { data: [] };
+  const { data: whRows } = whIds.length
+    ? await supabase.from("warehouses").select("id, name").in("id", whIds)
+    : { data: [] };
+
+  const itemNameMap = new Map((itemRows ?? []).map((r) => [r.id, r.name]));
+  const whNameMap = new Map((whRows ?? []).map((r) => [r.id, r.name]));
+
+  const recent_movements = (movements ?? []).map((m) => ({
+    id: m.id,
+    item_id: m.item_id,
+    item_name: itemNameMap.get(m.item_id) ?? "",
+    warehouse_id: m.warehouse_id,
+    warehouse_name: whNameMap.get(m.warehouse_id) ?? "",
+    quantity: Number(m.quantity),
+    movement_type: m.movement_type,
+    created_at: m.created_at,
+  }));
+
+  return {
+    total_items: totalItems ?? 0,
+    low_stock_count: lowStockItems.length,
+    total_stock_value: totalStockValue,
+    recent_movements,
+    low_stock_items: lowStockItems,
   };
 }
 
@@ -616,4 +983,382 @@ export async function getListingById(
   delete rest.properties;
   delete rest.property;
   return { ...rest, property_address } as Listing;
+}
+
+// ——— Finance module ———
+
+export interface GetFinanceAccountsResult {
+  items: Array<{
+    id: string;
+    tenant_id: string;
+    code: string;
+    name: string;
+    type: string;
+    subtype: string | null;
+    is_active: boolean;
+    parent_account_id: string | null;
+    tax_rate_id: string | null;
+    metadata: Record<string, unknown>;
+    created_at: string;
+    updated_at: string;
+  }>;
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export async function getFinanceAccounts(
+  tenantId: string,
+  params: { page: number; pageSize: number; search?: string; type?: string; is_active?: boolean }
+): Promise<GetFinanceAccountsResult> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { items: [], total: 0, page: params.page, pageSize: params.pageSize };
+
+  const { page, pageSize, search, type, is_active } = params;
+  let q = supabase
+    .from("accounts")
+    .select("id, tenant_id, code, name, type, subtype, is_active, parent_account_id, tax_rate_id, metadata, created_at, updated_at", { count: "exact" })
+    .eq("tenant_id", tenantId);
+
+  if (search?.trim()) {
+    q = q.or(`code.ilike.%${search.trim()}%,name.ilike.%${search.trim()}%`);
+  }
+  if (type) q = q.eq("type", type);
+  if (is_active !== undefined) q = q.eq("is_active", is_active);
+  q = q.order("code");
+
+  const from = (page - 1) * pageSize;
+  const { data: rows, error, count } = await q.range(from, from + pageSize - 1);
+
+  if (error) return { items: [], total: 0, page, pageSize };
+  return { items: (rows ?? []) as GetFinanceAccountsResult["items"], total: count ?? 0, page, pageSize };
+}
+
+export async function getFinanceAccountById(tenantId: string, accountId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data, error } = await supabase
+    .from("accounts")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .eq("id", accountId)
+    .single();
+  if (error || !data) return null;
+  return data;
+}
+
+export interface GetJournalEntriesResult {
+  items: Array<{
+    id: string;
+    tenant_id: string;
+    entry_number: string;
+    entry_date: string;
+    source_type: string | null;
+    source_id: string | null;
+    memo: string | null;
+    status: string;
+    created_by: string | null;
+    created_at: string;
+    updated_at: string;
+  }>;
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export async function getJournalEntries(
+  tenantId: string,
+  params: { page: number; pageSize: number; status?: string; from_date?: string; to_date?: string }
+): Promise<GetJournalEntriesResult> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { items: [], total: 0, page: params.page, pageSize: params.pageSize };
+
+  const { page, pageSize, status, from_date, to_date } = params;
+  let q = supabase
+    .from("journal_entries")
+    .select("id, tenant_id, entry_number, entry_date, source_type, source_id, memo, status, created_by, created_at, updated_at", { count: "exact" })
+    .eq("tenant_id", tenantId);
+
+  if (status) q = q.eq("status", status);
+  if (from_date) q = q.gte("entry_date", from_date);
+  if (to_date) q = q.lte("entry_date", to_date);
+  q = q.order("entry_date", { ascending: false });
+
+  const from = (page - 1) * pageSize;
+  const { data: rows, error, count } = await q.range(from, from + pageSize - 1);
+  if (error) return { items: [], total: 0, page, pageSize };
+  return { items: (rows ?? []) as GetJournalEntriesResult["items"], total: count ?? 0, page, pageSize };
+}
+
+export async function getJournalEntryById(tenantId: string, entryId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data: entry, error: eErr } = await supabase
+    .from("journal_entries")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .eq("id", entryId)
+    .single();
+  if (eErr || !entry) return null;
+  const { data: lines } = await supabase
+    .from("journal_lines")
+    .select("*")
+    .eq("journal_entry_id", entryId)
+    .eq("tenant_id", tenantId)
+    .order("id");
+  return { ...entry, lines: lines ?? [] };
+}
+
+export interface GetInvoicesResult {
+  items: Array<{
+    id: string;
+    tenant_id: string;
+    customer_id: string | null;
+    invoice_number: string;
+    status: string;
+    invoice_date: string;
+    due_date: string | null;
+    currency: string;
+    subtotal: number;
+    tax_total: number;
+    discount_total: number;
+    total: number;
+    balance: number;
+    notes: string | null;
+    source_sales_order_id: string | null;
+    created_at: string;
+    updated_at: string;
+  }>;
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export async function getInvoices(
+  tenantId: string,
+  params: { page: number; pageSize: number; search?: string; status?: string }
+): Promise<GetInvoicesResult> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { items: [], total: 0, page: params.page, pageSize: params.pageSize };
+
+  const { page, pageSize, search, status } = params;
+  let q = supabase
+    .from("invoices")
+    .select("id, tenant_id, customer_id, invoice_number, status, invoice_date, due_date, currency, subtotal, tax_total, discount_total, total, balance, notes, source_sales_order_id, created_at, updated_at", { count: "exact" })
+    .eq("tenant_id", tenantId);
+
+  if (status) q = q.eq("status", status);
+  if (search?.trim()) q = q.ilike("invoice_number", `%${search.trim()}%`);
+  q = q.order("invoice_date", { ascending: false });
+
+  const from = (page - 1) * pageSize;
+  const { data: rows, error, count } = await q.range(from, from + pageSize - 1);
+  if (error) return { items: [], total: 0, page, pageSize };
+  return { items: (rows ?? []) as GetInvoicesResult["items"], total: count ?? 0, page, pageSize };
+}
+
+export async function getInvoiceById(tenantId: string, invoiceId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data: inv, error: invErr } = await supabase
+    .from("invoices")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .eq("id", invoiceId)
+    .single();
+  if (invErr || !inv) return null;
+  const { data: invLines } = await supabase
+    .from("invoice_lines")
+    .select("*")
+    .eq("invoice_id", invoiceId)
+    .eq("tenant_id", tenantId);
+  return { ...inv, lines: invLines ?? [] };
+}
+
+export interface GetVendorBillsFinanceResult {
+  items: Array<{
+    id: string;
+    tenant_id: string;
+    vendor_id: string;
+    purchase_order_id: string | null;
+    bill_number: string | null;
+    bill_date: string;
+    due_date: string | null;
+    currency: string | null;
+    amount: number;
+    status: string;
+    notes: string | null;
+    created_at: string;
+    updated_at: string;
+  }>;
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export async function getFinanceVendorBills(
+  tenantId: string,
+  params: { page: number; pageSize: number; search?: string; status?: string }
+): Promise<GetVendorBillsFinanceResult> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { items: [], total: 0, page: params.page, pageSize: params.pageSize };
+
+  const { page, pageSize, search, status } = params;
+  let q = supabase
+    .from("vendor_bills")
+    .select("id, tenant_id, vendor_id, purchase_order_id, bill_number, bill_date, due_date, currency, amount, status, notes, created_at, updated_at", { count: "exact" })
+    .eq("tenant_id", tenantId);
+
+  if (status) q = q.eq("status", status);
+  if (search?.trim()) q = q.ilike("bill_number", `%${search.trim()}%`);
+  q = q.order("bill_date", { ascending: false });
+
+  const from = (page - 1) * pageSize;
+  const { data: rows, error, count } = await q.range(from, from + pageSize - 1);
+  if (error) return { items: [], total: 0, page, pageSize };
+  return { items: (rows ?? []) as GetVendorBillsFinanceResult["items"], total: count ?? 0, page, pageSize };
+}
+
+export async function getFinanceVendorBillById(tenantId: string, billId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data: bill, error: bErr } = await supabase
+    .from("vendor_bills")
+    .select("*, vendors(name)")
+    .eq("tenant_id", tenantId)
+    .eq("id", billId)
+    .single();
+  if (bErr || !bill) return null;
+  const { data: lines } = await supabase
+    .from("vendor_bill_lines")
+    .select("*")
+    .eq("vendor_bill_id", billId)
+    .eq("tenant_id", tenantId);
+  const vendor_name = bill.vendors && typeof bill.vendors === "object" && "name" in bill.vendors ? (bill.vendors as { name: string }).name : null;
+  const { vendors: _v, ...rest } = bill as Record<string, unknown>;
+  return { ...rest, vendor_name, lines: lines ?? [] };
+}
+
+export interface GetExpenseReportsResult {
+  items: Array<{
+    id: string;
+    tenant_id: string;
+    employee_id: string;
+    report_number: string;
+    status: string;
+    currency: string;
+    total_amount: number;
+    submitted_at: string | null;
+    approved_at: string | null;
+    paid_at: string | null;
+    created_at: string;
+    updated_at: string;
+  }>;
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export async function getExpenseReports(
+  tenantId: string,
+  params: { page: number; pageSize: number; status?: string }
+): Promise<GetExpenseReportsResult> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { items: [], total: 0, page: params.page, pageSize: params.pageSize };
+
+  const { page, pageSize, status } = params;
+  let q = supabase
+    .from("expense_reports")
+    .select("id, tenant_id, employee_id, report_number, status, currency, total_amount, submitted_at, approved_at, paid_at, created_at, updated_at", { count: "exact" })
+    .eq("tenant_id", tenantId);
+
+  if (status) q = q.eq("status", status);
+  q = q.order("created_at", { ascending: false });
+
+  const from = (page - 1) * pageSize;
+  const { data: rows, error, count } = await q.range(from, from + pageSize - 1);
+  if (error) return { items: [], total: 0, page, pageSize };
+  return { items: (rows ?? []) as GetExpenseReportsResult["items"], total: count ?? 0, page, pageSize };
+}
+
+export async function getExpenseReportById(tenantId: string, reportId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data: report, error: rErr } = await supabase
+    .from("expense_reports")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .eq("id", reportId)
+    .single();
+  if (rErr || !report) return null;
+  const { data: lines } = await supabase
+    .from("expense_lines")
+    .select("*")
+    .eq("expense_report_id", reportId)
+    .eq("tenant_id", tenantId);
+  return { ...report, lines: lines ?? [] };
+}
+
+export interface GetBankAccountsResult {
+  items: Array<{
+    id: string;
+    tenant_id: string;
+    name: string;
+    institution: string | null;
+    account_number_masked: string | null;
+    currency: string;
+    linked_gl_account_id: string;
+    opening_balance: number;
+    import_source: string | null;
+    import_id: string | null;
+    created_at: string;
+    updated_at: string;
+  }>;
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export async function getBankAccounts(
+  tenantId: string,
+  params: { page: number; pageSize: number }
+): Promise<GetBankAccountsResult> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { items: [], total: 0, page: params.page, pageSize: params.pageSize };
+
+  const { page, pageSize } = params;
+  const from = (page - 1) * pageSize;
+  const { data: rows, error, count } = await supabase
+    .from("bank_accounts")
+    .select("id, tenant_id, name, institution, account_number_masked, currency, linked_gl_account_id, opening_balance, import_source, import_id, created_at, updated_at", { count: "exact" })
+    .eq("tenant_id", tenantId)
+    .order("name")
+    .range(from, from + pageSize - 1);
+  if (error) return { items: [], total: 0, page, pageSize };
+  return { items: (rows ?? []) as GetBankAccountsResult["items"], total: count ?? 0, page, pageSize };
+}
+
+export async function getBankAccountById(tenantId: string, accountId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data, error } = await supabase
+    .from("bank_accounts")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .eq("id", accountId)
+    .single();
+  if (error || !data) return null;
+  return data;
 }

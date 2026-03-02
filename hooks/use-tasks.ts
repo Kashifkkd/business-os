@@ -11,6 +11,7 @@ import type {
   TaskSpace,
   TaskList,
   TaskStatus,
+  TaskLabel,
   Task,
   TaskComment,
   TaskActivity,
@@ -35,6 +36,10 @@ export type TasksQueryParams = {
   order?: string;
   page: number;
   pageSize: number;
+  /** Comma-separated: assignees, labels */
+  enrich?: string;
+  due_after?: string;
+  due_before?: string;
 };
 
 /** List of spaces for org. */
@@ -104,6 +109,23 @@ export function useSpaceStatuses(
   });
 }
 
+/** Labels for a space (and org-scoped). */
+export function useSpaceLabels(
+  orgId: string | undefined,
+  spaceId: string | undefined,
+  options?: Omit<UseQueryOptions<TaskLabel[]>, "queryKey" | "queryFn">
+) {
+  return useQuery({
+    queryKey: queryKeys.spaceLabels(orgId ?? "", spaceId ?? ""),
+    queryFn: () =>
+      orgId && spaceId
+        ? fetcherData<TaskLabel[]>(`${API}/orgs/${orgId}/spaces/${spaceId}/labels`)
+        : Promise.resolve([]),
+    enabled: !!orgId && !!spaceId,
+    ...options,
+  });
+}
+
 /** Paginated tasks list. */
 export function useTasks(
   orgId: string | undefined,
@@ -128,6 +150,9 @@ export function useTasks(
       if (params.search) sp.set("search", params.search);
       if (params.sortBy) sp.set("sortBy", params.sortBy);
       if (params.order) sp.set("order", params.order);
+      if (params.enrich) sp.set("enrich", params.enrich);
+      if (params.due_after) sp.set("due_after", params.due_after);
+      if (params.due_before) sp.set("due_before", params.due_before);
       return fetcherData<GetTasksResult>(`${API}/orgs/${orgId}/tasks?${sp.toString()}`);
     },
     enabled: !!orgId && !!space_id,
@@ -204,6 +229,7 @@ export type CreateTaskPayload = {
   start_date?: string | null;
   sort_order?: number;
   assignee_ids?: string[];
+  label_ids?: string[];
 };
 export type UpdateTaskPayload = Partial<{
   list_id: string;
@@ -217,6 +243,7 @@ export type UpdateTaskPayload = Partial<{
   sort_order: number;
   custom_fields: Record<string, unknown>;
   assignee_ids: string[];
+  label_ids: string[];
 }>;
 
 export function useCreateSpace(

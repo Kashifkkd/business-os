@@ -42,6 +42,7 @@ export type CreateMenuItemBody = {
   stock_quantity?: number | null;
   minimum_stock?: number | null;
   minimum_order?: number | null;
+  inventory_item_id?: string | null;
   dietary_tags?: string[];
   allergens?: string[];
   prep_time_minutes?: number | null;
@@ -109,6 +110,7 @@ export async function POST(
     stock_quantity: body.stock_quantity != null ? Number(body.stock_quantity) : null,
     minimum_stock: body.minimum_stock != null ? Number(body.minimum_stock) : null,
     minimum_order: body.minimum_order != null ? Number(body.minimum_order) : 1,
+    inventory_item_id: body.inventory_item_id?.trim() || null,
     dietary_tags: Array.isArray(body.dietary_tags) ? body.dietary_tags : [],
     allergens: Array.isArray(body.allergens) ? body.allergens : [],
     prep_time_minutes: body.prep_time_minutes != null ? Number(body.prep_time_minutes) : null,

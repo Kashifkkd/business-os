@@ -8,6 +8,7 @@ import {
   useTasks,
   useUpdateTaskById,
 } from "@/hooks/use-tasks";
+import { useOrganization } from "@/hooks/use-organization";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -16,6 +17,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { AssigneeAvatars } from "@/components/assignee-avatars";
+import { getPriorityClassName, getPriorityLabel } from "@/lib/task-priority";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus } from "lucide-react";
 import { useCallback, useState } from "react";
@@ -53,9 +57,17 @@ export default function TasksBoardPage() {
       pageSize: 500,
       sortBy: "sort_order",
       order: "asc",
+      enrich: "assignees,labels",
     },
     { enabled: !!spaceId && !!statuses?.length }
   );
+  const { orgMembers = [] } = useOrganization(orgId, { enabled: !!orgId });
+  const membersForAvatars = orgMembers.map((m) => ({
+    user_id: m.user_id,
+    first_name: m.first_name,
+    last_name: m.last_name,
+    avatar_url: null,
+  }));
 
   if (allTasks?.items) {
     for (const t of allTasks.items) {
@@ -154,6 +166,7 @@ export default function TasksBoardPage() {
               status={status}
               tasks={tasksByStatus[status.id] ?? []}
               basePath={base}
+              members={membersForAvatars}
               isDragOver={dragOverStatusId === status.id}
               onDragOver={(e) => handleDragOver(e, status.id)}
               onDrop={(e) => handleDrop(e, status.id)}
@@ -168,10 +181,18 @@ export default function TasksBoardPage() {
   );
 }
 
+type MemberInfo = {
+  user_id: string;
+  first_name: string | null;
+  last_name: string | null;
+  avatar_url?: string | null;
+};
+
 function KanbanColumn({
   status,
   tasks,
   basePath,
+  members,
   isDragOver,
   onDragOver,
   onDrop,
@@ -182,6 +203,7 @@ function KanbanColumn({
   status: TaskStatus;
   tasks: Task[];
   basePath: string;
+  members: MemberInfo[];
   isDragOver: boolean;
   onDragOver: (e: React.DragEvent) => void;
   onDrop: (e: React.DragEvent) => void;
@@ -189,12 +211,18 @@ function KanbanColumn({
   onDragEnd: () => void;
   draggedTask: Task | null;
 }) {
+  const statusColor = status.color;
   return (
     <div
       className={cn(
         "flex min-w-[280px] flex-1 flex-col rounded-lg border bg-muted/30 p-3 transition-colors",
         isDragOver && "ring-2 ring-primary"
       )}
+      style={
+        statusColor
+          ? { borderLeftWidth: 4, borderLeftColor: statusColor, borderLeftStyle: "solid" }
+          : undefined
+      }
       onDragOver={onDragOver}
       onDrop={onDrop}
       onDragLeave={() => {}}
@@ -209,6 +237,7 @@ function KanbanColumn({
             key={task.id}
             task={task}
             basePath={basePath}
+            members={members}
             isDragging={draggedTask?.id === task.id}
             onDragStart={() => onDragStart(task)}
             onDragEnd={onDragEnd}
@@ -222,12 +251,14 @@ function KanbanColumn({
 function KanbanCard({
   task,
   basePath,
+  members,
   isDragging,
   onDragStart,
   onDragEnd,
 }: {
   task: Task;
   basePath: string;
+  members: MemberInfo[];
   isDragging: boolean;
   onDragStart: () => void;
   onDragEnd: () => void;
@@ -243,16 +274,45 @@ function KanbanCard({
       }}
       onDragEnd={onDragEnd}
       className={cn(
-        "rounded-md border bg-background p-3 shadow-sm transition-shadow hover:shadow",
+        "rounded-md border bg-background p-3 shadow-sm transition-shadow hover:shadow flex flex-col gap-2",
         isDragging && "opacity-50"
       )}
     >
-      <p className="font-medium text-sm">{task.title}</p>
-      {task.due_date && (
-        <p className="mt-1 text-muted-foreground text-xs">
-          Due {format(new Date(task.due_date), "MMM d")}
-        </p>
+      <p className="font-medium text-sm line-clamp-2">{task.title}</p>
+      {(task.priority && task.priority !== "none") && (
+        <Badge variant="secondary" className={cn("w-fit text-[10px] font-normal", getPriorityClassName(task.priority))}>
+          {getPriorityLabel(task.priority)}
+        </Badge>
       )}
+      {(task.labels?.length ?? 0) > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {task.labels?.slice(0, 3).map((l) => (
+            <span
+              key={l.id}
+              className="rounded px-1.5 py-0.5 text-[10px] font-medium"
+              style={l.color ? { backgroundColor: `${l.color}30`, color: l.color } : undefined}
+            >
+              {l.name}
+            </span>
+          ))}
+          {(task.labels?.length ?? 0) > 3 && (
+            <span className="text-muted-foreground text-[10px]">+{(task.labels?.length ?? 0) - 3}</span>
+          )}
+        </div>
+      )}
+      <div className="flex items-center justify-between gap-2 mt-auto">
+        {task.due_date && (
+          <p className="text-muted-foreground text-xs">
+            Due {format(new Date(task.due_date), "MMM d")}
+          </p>
+        )}
+        <AssigneeAvatars
+          assigneeIds={task.assignee_ids ?? []}
+          members={members}
+          max={2}
+          size="sm"
+        />
+      </div>
     </Link>
   );
 }

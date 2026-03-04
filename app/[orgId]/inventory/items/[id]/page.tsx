@@ -3,6 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useInventoryItem } from "@/hooks/use-inventory-items";
 import { InventoryItemForm } from "../new/inventory-item-form";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function EditInventoryItemPage() {
@@ -17,9 +18,11 @@ export default function EditInventoryItemPage() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto max-w-2xl p-4">
-        <Skeleton className="mb-4 h-8 w-32" />
-        <Skeleton className="h-64 w-full" />
+      <div className="flex h-full w-full min-h-0 flex-col overflow-auto">
+        <div className="mx-auto w-full max-w-6xl px-2 py-4">
+          <Skeleton className="mb-4 h-8 w-32" />
+          <Skeleton className="h-64 w-full" />
+        </div>
       </div>
     );
   }
@@ -30,10 +33,12 @@ export default function EditInventoryItemPage() {
   }
 
   return (
-    <div className="h-full w-full min-h-0 flex flex-col">
-      <div className="container mx-auto max-w-2xl flex-1 overflow-y-auto p-4">
-        <InventoryItemForm key={item.id} orgId={orgId} initialItem={item} />
-      </div>
+    <div className="flex h-full w-full min-h-0 flex-col overflow-auto">
+      <ScrollArea className="flex-1">
+        <div className="mx-auto w-full max-w-6xl px-2 py-4">
+          <InventoryItemForm key={item.id} orgId={orgId} initialItem={item} />
+        </div>
+      </ScrollArea>
     </div>
   );
 }

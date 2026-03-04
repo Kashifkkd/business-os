@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { ArrowLeft } from "lucide-react";
 
 export default function NewEmployeePage() {
@@ -65,19 +66,25 @@ export default function NewEmployeePage() {
   if (!orgId) return null;
 
   return (
-    <div className="container mx-auto max-w-xl space-y-4">
-      <div className="mb-4">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href={`/${orgId}/staff`}>
-            <ArrowLeft className="size-4" />
-            Back to employees
-          </Link>
-        </Button>
-      </div>
-      <Card>
+    <div className="flex h-full w-full min-h-0 flex-col overflow-auto">
+      <ScrollArea className="flex-1">
+        <div className="mx-auto w-full max-w-6xl space-y-4 px-2 py-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-row items-center gap-1">
+              <Button variant="ghost" size="sm" asChild>
+                <Link href={`/${orgId}/staff`} className="gap-1.5">
+                  <ArrowLeft className="size-4" />
+                </Link>
+              </Button>
+              <h1 className="text-md font-semibold tracking-tight text-foreground">
+                Add employee
+              </h1>
+            </div>
+          </div>
+          <Card>
         <CardHeader>
-          <h1 className="text-lg font-semibold">Add employee</h1>
-          <p className="text-muted-foreground text-sm">
+            <h2 className="text-sm font-semibold text-foreground">Employee details</h2>
+            <p className="text-muted-foreground text-sm font-normal">
             Create a new employee record. Link to a user account (optional) to show name from profile.
           </p>
         </CardHeader>
@@ -95,7 +102,7 @@ export default function NewEmployeePage() {
                 <SelectContent>
                   <SelectItem value="none">— None —</SelectItem>
                   {orgMembers.map((m) => {
-                    const name = [m.first_name, m.last_name].filter(Boolean).join(" ").trim() || m.email ?? m.user_id;
+                    const name = [m.first_name, m.last_name].filter(Boolean).join(" ").trim() || (m.email ?? m.user_id);
                     return (
                       <SelectItem key={m.user_id} value={m.user_id}>
                         {name}
@@ -203,7 +210,9 @@ export default function NewEmployeePage() {
             </div>
           </form>
         </CardContent>
-      </Card>
+          </Card>
+        </div>
+      </ScrollArea>
     </div>
   );
 }

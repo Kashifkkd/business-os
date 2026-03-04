@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { Pencil, Trash2, Plus } from "lucide-react";
 import {
   useReactTable,
@@ -42,7 +43,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   useDepartmentsList,
-  useCreateDepartment,
   useUpdateDepartment,
   useDeleteDepartment,
 } from "@/hooks/use-departments";
@@ -58,52 +58,38 @@ export default function DepartmentsPage() {
   const orgId = params?.orgId as string;
 
   const { data: departments = [], isLoading } = useDepartmentsList(orgId);
-  const createDept = useCreateDepartment(orgId);
   const updateDept = useUpdateDepartment(orgId);
   const deleteDept = useDeleteDepartment(orgId);
 
-  const [createOpen, setCreateOpen] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newCode, setNewCode] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingDept, setEditingDept] = useState<Department | null>(null);
   const [editName, setEditName] = useState("");
   const [editCode, setEditCode] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const handleAdd = async () => {
-    const name = newName.trim();
-    if (!name) return;
-    try {
-      await createDept.mutateAsync({ name, code: newCode.trim() || null });
-      setNewName("");
-      setNewCode("");
-      setCreateOpen(false);
-    } catch {
-      // error handled by mutation
-    }
-  };
-
-  const startEdit = (d: Department) => {
-    setEditingId(d.id);
+  const openEdit = (d: Department) => {
+    setEditingDept(d);
     setEditName(d.name);
     setEditCode(d.code ?? "");
+    setEditDialogOpen(true);
   };
 
-  const handleSaveEdit = useCallback(async () => {
-    if (!editingId) return;
+  const handleSaveEdit = async () => {
+    if (!editingDept) return;
     const name = editName.trim();
     if (!name) return;
     try {
       await updateDept.mutateAsync({
-        id: editingId,
+        id: editingDept.id,
         name,
         code: editCode.trim() || null,
       });
-      setEditingId(null);
+      setEditDialogOpen(false);
+      setEditingDept(null);
     } catch {
       // error handled by mutation
     }
-  }, [editingId, editName, editCode, updateDept]);
+  };
 
   const handleDelete = async () => {
     if (!deleteId) return;
@@ -119,66 +105,45 @@ export default function DepartmentsPage() {
     () => [
       columnHelper.accessor("name", {
         header: "Name",
-        cell: (ctx) => {
-          const d = ctx.row.original;
-          if (editingId === d.id) {
-            return (
-              <div className="flex items-center gap-2">
-                <Input
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  className="h-8 w-48"
-                />
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleSaveEdit}
-                  disabled={updateDept.isPending}
-                >
-                  Save
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setEditingId(null)}
-                >
-                  Cancel
-                </Button>
-              </div>
-            );
-          }
-          return <span className="font-medium">{ctx.getValue()}</span>;
-        },
+        cell: (ctx) => (
+          <span className="font-medium">{ctx.getValue()}</span>
+        ),
       }),
       columnHelper.accessor("code", {
         header: "Code",
-        cell: (ctx) => {
-          const d = ctx.row.original;
-          if (editingId === d.id) {
-            return (
-              <Input
-                value={editCode}
-                onChange={(e) => setEditCode(e.target.value)}
-                className="h-8 w-24"
-                placeholder="e.g. SAL"
-              />
-            );
-          }
-          return (
-            <span className="tabular-nums text-muted-foreground">
-              {ctx.getValue() ?? "—"}
-            </span>
-          );
-        },
+        cell: (ctx) => (
+          <span className="tabular-nums text-muted-foreground">
+            {ctx.getValue() ?? "—"}
+          </span>
+        ),
       }),
       columnHelper.accessor("created_at", {
-        header: "Created",
+        header: "Created at",
         cell: (ctx) => (
           <DateDisplay
             value={ctx.getValue()}
-            variant="timeAgo"
+            variant="datetime"
             layout="column"
           />
+        ),
+      }),
+      columnHelper.accessor("updated_at", {
+        header: "Updated at",
+        cell: (ctx) => (
+          <DateDisplay
+            value={ctx.getValue()}
+            variant="datetime"
+            layout="column"
+          />
+        ),
+      }),
+      columnHelper.display({
+        id: "created_by",
+        header: "Created by",
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {row.original.created_by_name ?? "—"}
+          </span>
         ),
       }),
       columnHelper.display({
@@ -186,14 +151,13 @@ export default function DepartmentsPage() {
         header: "",
         cell: ({ row }) => {
           const d = row.original;
-          if (editingId === d.id) return null;
           return (
             <div className="flex gap-1">
               <Button
                 variant="ghost"
                 size="icon"
                 className="size-8"
-                onClick={() => startEdit(d)}
+                onClick={() => openEdit(d)}
                 aria-label="Edit"
               >
                 <Pencil className="size-3.5" />
@@ -212,7 +176,7 @@ export default function DepartmentsPage() {
         },
       }),
     ],
-    [editingId, editName, editCode, updateDept.isPending, handleSaveEdit]
+    []
   );
 
   const table = useReactTable({
@@ -241,14 +205,16 @@ export default function DepartmentsPage() {
               ? "No departments"
               : `${total} department${total === 1 ? "" : "s"}`}
           </p>
-          <Button size="sm" onClick={() => setCreateOpen(true)} className="gap-1.5">
-            <Plus className="size-3.5" />
-            Create
+          <Button size="sm" asChild className="gap-1.5">
+            <Link href={`/${orgId}/staff/departments/new`}>
+              <Plus className="size-3.5" />
+              Create
+            </Link>
           </Button>
         </div>
 
         {isLoading ? (
-          <TableLoadingSkeleton columnCount={4} rowCount={8} compact />
+          <TableLoadingSkeleton columnCount={6} rowCount={8} compact />
         ) : isArrayWithValues(departments) ? (
           <div className="rounded-md border">
             <Table>
@@ -294,42 +260,44 @@ export default function DepartmentsPage() {
             description="Add a department to organize your team (e.g. Sales, Kitchen, HR)."
             icon={Building2}
             action={
-              <Button size="sm" onClick={() => setCreateOpen(true)} className="gap-1.5">
-                <Plus className="size-3.5" />
-                Create department
+              <Button size="sm" asChild className="gap-1.5">
+                <Link href={`/${orgId}/staff/departments/new`}>
+                  <Plus className="size-3.5" />
+                  Create department
+                </Link>
               </Button>
             }
           />
         )}
       </div>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="sm:max-w-md" showCloseButton>
           <DialogHeader>
-            <DialogTitle>Add department</DialogTitle>
+            <DialogTitle>Edit department</DialogTitle>
             <DialogDescription>
-              Create a new department (e.g. Sales, Kitchen, Operations).
+              Update the department name and code.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label htmlFor="new-dept-name">Name</Label>
+              <Label htmlFor="edit-dept-name">Name</Label>
               <Input
-                id="new-dept-name"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
+                id="edit-dept-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
                 placeholder="e.g. Sales"
-                onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+                onKeyDown={(e) => e.key === "Enter" && handleSaveEdit()}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="new-dept-code">Code (optional)</Label>
+              <Label htmlFor="edit-dept-code">Code (optional)</Label>
               <Input
-                id="new-dept-code"
-                value={newCode}
-                onChange={(e) => setNewCode(e.target.value)}
+                id="edit-dept-code"
+                value={editCode}
+                onChange={(e) => setEditCode(e.target.value)}
                 placeholder="e.g. SAL"
-                onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+                onKeyDown={(e) => e.key === "Enter" && handleSaveEdit()}
               />
             </div>
           </div>
@@ -337,17 +305,16 @@ export default function DepartmentsPage() {
             <Button
               variant="outline"
               onClick={() => {
-                setCreateOpen(false);
-                setNewName("");
-                setNewCode("");
+                setEditDialogOpen(false);
+                setEditingDept(null);
               }}
             >
               Cancel
             </Button>
             <Button
               size="sm"
-              onClick={handleAdd}
-              disabled={createDept.isPending || !newName.trim()}
+              onClick={handleSaveEdit}
+              disabled={updateDept.isPending || !editName.trim()}
             >
               Save
             </Button>

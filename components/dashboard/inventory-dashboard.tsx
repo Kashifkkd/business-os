@@ -95,7 +95,7 @@ export function InventoryDashboard({ orgId }: InventoryDashboardProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{analytics.recent_movements.length}</div>
-            <p className="text-muted-foreground text-xs">Last 10 stock changes</p>
+            <p className="text-muted-foreground text-xs">Recent stock changes</p>
           </CardContent>
         </Card>
       </div>
@@ -145,29 +145,36 @@ export function InventoryDashboard({ orgId }: InventoryDashboardProps) {
             {analytics.recent_movements.length === 0 ? (
               <p className="text-muted-foreground text-sm">No recent movements.</p>
             ) : (
-              <ul className="space-y-2">
-                {analytics.recent_movements.map((m) => (
-                  <li
-                    key={m.id}
-                    className="flex items-center justify-between rounded-md border p-2 text-sm"
-                  >
-                    <div>
-                      <span className="font-medium">{m.item_name}</span>
-                      <span className="ml-2 text-muted-foreground">@ {m.warehouse_name}</span>
-                    </div>
-                    <span
-                      className={
-                        m.quantity > 0
-                          ? "text-green-600"
-                          : "text-red-600"
-                      }
+              <>
+                <ul className="space-y-2">
+                  {analytics.recent_movements.slice(0, 10).map((m) => (
+                    <li
+                      key={m.id}
+                      className="flex items-center justify-between rounded-md border p-2 text-sm"
                     >
-                      {m.quantity > 0 ? "+" : ""}
-                      {m.quantity}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+                      <div>
+                        <span className="font-medium">{m.item_name}</span>
+                        <span className="ml-2 text-muted-foreground">@ {m.warehouse_name}</span>
+                      </div>
+                      <span
+                        className={
+                          m.quantity > 0
+                            ? "text-green-600"
+                            : "text-red-600"
+                        }
+                      >
+                        {m.quantity > 0 ? "+" : ""}
+                        {m.quantity}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {analytics.recent_movements.length > 10 && (
+                  <Button variant="ghost" size="sm" className="mt-2" asChild>
+                    <Link href={`/${orgId}/inventory/reports`}>View all in Reports</Link>
+                  </Button>
+                )}
+              </>
             )}
           </CardContent>
         </Card>

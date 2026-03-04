@@ -101,17 +101,21 @@ export function InventoryItemForm({ orgId, initialItem }: InventoryItemFormProps
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
-      <div className="flex items-center gap-2">
-        <Button type="button" variant="ghost" size="sm" onClick={() => router.back()}>
-          <ArrowLeft className="size-3.5" />
-          Back
-        </Button>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-row items-center gap-1">
+          <Button type="button" variant="ghost" size="sm" onClick={() => router.back()}>
+            <ArrowLeft className="size-4" />
+          </Button>
+          <h1 className="text-md font-semibold tracking-tight text-foreground">
+            {isEdit ? "Edit item" : "New item"}
+          </h1>
+        </div>
       </div>
 
       <Card>
-        <CardHeader>
-          <h2 className="text-sm font-semibold">
-            {isEdit ? "Edit Item" : "New Item"}
+        <CardHeader className="pb-3">
+          <h2 className="text-sm font-semibold text-foreground">
+            Item details
           </h2>
         </CardHeader>
         <CardContent className="space-y-4">

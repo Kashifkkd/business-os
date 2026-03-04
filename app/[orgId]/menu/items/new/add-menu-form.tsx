@@ -33,6 +33,7 @@ import { useMenuDiscounts } from "@/hooks/use-menu-discounts";
 import type { MenuItem } from "@/lib/supabase/types";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { isArrayWithValues } from "@/lib/is-array-with-values";
 
 const FOOD_TYPE_OPTIONS = ["veg", "non_veg"] as const;
 
@@ -464,7 +465,7 @@ export function AddMenuForm({ orgId, initialItem }: AddMenuFormProps) {
                               />
                             </SelectTrigger>
                             <SelectContent>
-                              {subcategories.map((s) => (
+                              {isArrayWithValues(subcategories) && subcategories.map((s) => (
                                 <SelectItem key={s.id} value={s.id}>
                                   {s.name}
                                 </SelectItem>

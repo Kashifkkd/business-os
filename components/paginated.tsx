@@ -1,6 +1,14 @@
 "use client";
 
-import { Fragment } from "react";
+import { Fragment, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Pagination,
   PaginationContent,
@@ -25,6 +33,8 @@ type PaginatedProps = {
   defaultPageSize?: number;
   /** Extra query params to include in every page link (e.g. { search: "foo" }) */
   params?: PaginatedParams;
+  /** Page size options for selector; when omitted, selector is hidden */
+  pageSizeOptions?: number[];
 };
 
 function buildQuery(
@@ -47,7 +57,10 @@ export function Paginated({
   totalPages,
   defaultPageSize = 10,
   params = {},
+  pageSizeOptions = [10, 20, 50, 100],
 }: PaginatedProps) {
+  const router = useRouter();
+
   if (totalPages <= 1) return null;
 
   const pages = [
@@ -73,43 +86,83 @@ export function Paginated({
       ? `${pathname}${buildQuery(page + 1, pageSize, defaultPageSize, params)}`
       : "#";
 
+  const handlePageSizeChange = useCallback(
+    (value: string) => {
+      const size = Number(value);
+      if (!Number.isFinite(size) || size <= 0) return;
+      const search = buildQuery(1, size, defaultPageSize, params);
+      router.push(`${pathname}${search}`);
+    },
+    [pathname, params, defaultPageSize, router]
+  );
+
   return (
-    <Pagination>
-      <PaginationContent>
-        <PaginationItem>
-          <PaginationPrevious
-            href={prevHref}
-            className={page <= 1 ? "pointer-events-none opacity-50" : ""}
-          />
-        </PaginationItem>
-        {pages.map((p, i) => (
-          <Fragment key={p}>
-            {i > 0 && pages[i - 1] !== p - 1 && (
-              <PaginationItem>
-                <span className="flex size-9 items-center justify-center px-1 text-muted-foreground">
-                  …
-                </span>
-              </PaginationItem>
-            )}
+    <div className="sticky bottom-0 z-20 border-t bg-background/95 px-2 py-2 backdrop-blur">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {pageSizeOptions.length > 0 && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>Rows per page</span>
+            <Select
+              value={String(pageSize)}
+              onValueChange={handlePageSizeChange}
+            >
+              <SelectTrigger className="h-8 w-20">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {pageSizeOptions.map((opt) => (
+                  <SelectItem key={opt} value={String(opt)}>
+                    {opt}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        <Pagination>
+          <PaginationContent>
             <PaginationItem>
-              <PaginationLink
-                href={`${pathname}${buildQuery(p, pageSize, defaultPageSize, params)}`}
-                isActive={p === page}
-              >
-                {p}
-              </PaginationLink>
+              <PaginationPrevious
+                href={prevHref}
+                className={page <= 1 ? "pointer-events-none opacity-50" : ""}
+              />
             </PaginationItem>
-          </Fragment>
-        ))}
-        <PaginationItem>
-          <PaginationNext
-            href={nextHref}
-            className={
-              page >= totalPages ? "pointer-events-none opacity-50" : ""
-            }
-          />
-        </PaginationItem>
-      </PaginationContent>
-    </Pagination>
+            {pages.map((p, i) => (
+              <Fragment key={p}>
+                {i > 0 && pages[i - 1] !== p - 1 && (
+                  <PaginationItem>
+                    <span className="flex size-9 items-center justify-center px-1 text-muted-foreground">
+                      …
+                    </span>
+                  </PaginationItem>
+                )}
+                <PaginationItem>
+                  <PaginationLink
+                    href={`${pathname}${buildQuery(
+                      p,
+                      pageSize,
+                      defaultPageSize,
+                      params
+                    )}`}
+                    isActive={p === page}
+                  >
+                    {p}
+                  </PaginationLink>
+                </PaginationItem>
+              </Fragment>
+            ))}
+            <PaginationItem>
+              <PaginationNext
+                href={nextHref}
+                className={
+                  page >= totalPages ? "pointer-events-none opacity-50" : ""
+                }
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      </div>
+    </div>
   );
 }

@@ -77,28 +77,34 @@ export default function NewTaskPage() {
 
   return (
     <div className="flex h-full w-full min-h-0 flex-col overflow-auto">
-      <div className="flex flex-col gap-6 p-6 max-w-2xl">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href={`${base}/tasks/list?space_id=${effectiveSpaceId}`}>
-            <ArrowLeft className="mr-2 size-4" />
-            Back
-          </Link>
-        </Button>
+      <div className="mx-auto w-full max-w-6xl space-y-4 px-2 py-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-row items-center gap-1">
+            <Button variant="ghost" size="sm" asChild>
+              <Link href={`${base}/tasks/list?space_id=${effectiveSpaceId}`} className="gap-1.5">
+                <ArrowLeft className="size-4" />
+              </Link>
+            </Button>
+            <h1 className="text-md font-semibold tracking-tight text-foreground">
+              New task
+            </h1>
+          </div>
+        </div>
 
-        <h1 className="text-2xl font-semibold">New task</h1>
-
-        <TaskForm
-          orgId={orgId}
-          defaultSpaceId={effectiveSpaceId}
-          spaces={spaces}
-          statuses={statuses ?? []}
-          labels={labels}
-          members={membersForForm}
-          onSubmit={handleSubmit}
-          isSubmitting={createTask.isPending}
-          submitLabel="Create task"
-          cancelHref={`${base}/tasks/list?space_id=${effectiveSpaceId}`}
-        />
+        <div className="pt-2">
+          <TaskForm
+            orgId={orgId}
+            defaultSpaceId={effectiveSpaceId}
+            spaces={spaces}
+            statuses={statuses ?? []}
+            labels={labels}
+            members={membersForForm}
+            onSubmit={handleSubmit}
+            isSubmitting={createTask.isPending}
+            submitLabel="Create task"
+            cancelHref={`${base}/tasks/list?space_id=${effectiveSpaceId}`}
+          />
+        </div>
       </div>
     </div>
   );

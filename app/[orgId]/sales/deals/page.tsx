@@ -127,8 +127,8 @@ export default function DealsPage() {
         <SearchBox
           value={searchInput}
           onChange={setSearchInput}
-          placeholder="Search deals…”
-          className="w-48"
+          className={"w-48"}
+          placeholder="Search deal..."
         />
         <Select
           value={stageId || "__all__"}

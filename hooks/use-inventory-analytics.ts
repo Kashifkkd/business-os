@@ -17,6 +17,7 @@ export function useInventoryAnalytics(
             total_items: 0,
             low_stock_count: 0,
             total_stock_value: 0,
+            stock_valuation_report: [],
             recent_movements: [],
             low_stock_items: [],
           }),

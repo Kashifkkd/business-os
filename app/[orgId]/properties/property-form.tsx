@@ -31,6 +31,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { usePropertyCategoriesList } from "@/hooks/use-property-categories";
 import { usePropertySubcategoriesList } from "@/hooks/use-property-subcategories";
+import { isArrayWithValues } from "@/lib/is-array-with-values";
 
 export type PropertyFormProps = {
   orgId: string;
@@ -231,7 +232,7 @@ export function PropertyForm({
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
-                      {categories.map((c) => (
+                      {isArrayWithValues(categories) && categories.map((c) => (
                         <SelectItem key={c.id} value={c.id}>
                           {c.name}
                         </SelectItem>
@@ -256,7 +257,7 @@ export function PropertyForm({
                       <SelectValue placeholder="Select subcategory" />
                     </SelectTrigger>
                     <SelectContent>
-                      {subcategories.map((s) => (
+                      {isArrayWithValues(subcategories) && subcategories.map((s) => (
                         <SelectItem key={s.id} value={s.id}>
                           {s.name}
                         </SelectItem>
@@ -490,4 +491,4 @@ export function PropertyForm({
   );
 }
 
-export { emptyPropertyFormValues, propertyToFormValues };
+export { emptyPropertyFormValues };

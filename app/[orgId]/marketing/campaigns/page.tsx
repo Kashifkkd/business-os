@@ -2,41 +2,20 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useSearchParams, useRouter, usePathname } from "next/navigation";
-import Link from "next/link";
 import { useMarketingCampaigns } from "@/hooks/use-marketing";
 import { useDebounce } from "@/hooks/use-debounce";
-import { CampaignsTable } from "./campaigns-table";
-import { SearchBox } from "@/components/search-box";
+import { CampaignsTable } from "@/app/[orgId]/marketing/campaigns/campaigns-table";
 import { Button } from "@/components/ui/button";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Plus } from "lucide-react";
+  DateRangeFilter,
+  getDefaultDateRange,
+  type DateRangeValue,
+} from "@/components/date-range-filter";
+import { Upload } from "lucide-react";
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 10;
 const SEARCH_DEBOUNCE_MS = 300;
-
-const STATUS_OPTIONS = [
-  { value: "", label: "All statuses" },
-  { value: "draft", label: "Draft" },
-  { value: "scheduled", label: "Scheduled" },
-  { value: "running", label: "Running" },
-  { value: "paused", label: "Paused" },
-  { value: "completed", label: "Completed" },
-];
-
-const CHANNEL_OPTIONS = [
-  { value: "", label: "All channels" },
-  { value: "email", label: "Email" },
-  { value: "sms", label: "SMS" },
-  { value: "whatsapp", label: "WhatsApp" },
-  { value: "social", label: "Social" },
-];
 
 export default function MarketingCampaignsPage() {
   const params = useParams();
@@ -45,14 +24,11 @@ export default function MarketingCampaignsPage() {
   const pathname = usePathname();
   const orgId = params?.orgId as string;
 
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const [dateRange, setDateRange] = useState<DateRangeValue>(getDefaultDateRange());
 
   const searchFromUrl = searchParams.get("search") ?? "";
   const [searchInput, setSearchInput] = useState(searchFromUrl);
   const debouncedSearch = useDebounce(searchInput, SEARCH_DEBOUNCE_MS);
-
-  useEffect(() => setSearchInput(searchFromUrl), [searchFromUrl]);
 
   const setParams = useCallback(
     (updates: { page?: number; search?: string; status?: string; channel?: string }) => {
@@ -85,7 +61,10 @@ export default function MarketingCampaignsPage() {
   }, [debouncedSearch, searchFromUrl]);
 
   const page = Math.max(1, Number(searchParams.get("page")) || DEFAULT_PAGE);
-  const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize")) || DEFAULT_PAGE_SIZE));
+  const pageSize = Math.min(
+    100,
+    Math.max(1, Number(searchParams.get("pageSize")) || DEFAULT_PAGE_SIZE)
+  );
   const search = searchParams.get("search") ?? "";
   const status = searchParams.get("status") ?? "";
   const channel = searchParams.get("channel") ?? "";
@@ -99,7 +78,7 @@ export default function MarketingCampaignsPage() {
       status: status.trim() || undefined,
       channel: channel.trim() || undefined,
     },
-    { enabled: !!orgId && mounted }
+    { enabled: !!orgId  }
   );
 
   const tableData = data ?? {
@@ -129,47 +108,14 @@ export default function MarketingCampaignsPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <SearchBox
-            value={searchInput}
-            onChange={setSearchInput}
-            placeholder="Search campaigns..."
-            className="w-56 sm:w-64"
+          <DateRangeFilter
+            value={dateRange}
+            onChange={setDateRange}
+            placeholder="Date range"
           />
-          <Select
-            value={status || "all"}
-            onValueChange={(v) => setParams({ status: v === "all" ? "" : v, page: 1 })}
-          >
-            <SelectTrigger className="w-[130px]">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              {STATUS_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value || "all"} value={opt.value || "all"}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={channel || "all"}
-            onValueChange={(v) => setParams({ channel: v === "all" ? "" : v, page: 1 })}
-          >
-            <SelectTrigger className="w-[130px]">
-              <SelectValue placeholder="Channel" />
-            </SelectTrigger>
-            <SelectContent>
-              {CHANNEL_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value || "all"} value={opt.value || "all"}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button asChild>
-            <Link href={`/${orgId}/marketing/campaigns/new`}>
-              <Plus className="size-3.5" />
-              New campaign
-            </Link>
+          <Button variant="outline" size="sm">
+            <Upload className="size-3.5" />
+            Import
           </Button>
         </div>
       </div>
@@ -179,7 +125,14 @@ export default function MarketingCampaignsPage() {
         data={tableData}
         params={searchParamsForTable}
         isLoading={isLoading || isRefetching}
+        searchValue={searchInput}
+        onSearchChange={setSearchInput}
+        status={status}
+        channel={channel}
+        onStatusChange={(value: string) => setParams({ status: value, page: 1 })}
+        onChannelChange={(value: string) => setParams({ channel: value, page: 1 })}
       />
     </div>
   );
 }
+

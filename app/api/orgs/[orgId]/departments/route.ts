@@ -5,7 +5,7 @@ import { getTenantById } from "@/lib/supabase/queries";
 import type { Department } from "@/lib/supabase/types";
 
 const DEPARTMENT_SELECT =
-  "id, tenant_id, name, code, parent_id, sort_order, created_at, updated_at";
+  "id, tenant_id, name, code, parent_id, sort_order, created_at, updated_at, created_by";
 
 export async function GET(
   _request: Request,
@@ -40,7 +40,27 @@ export async function GET(
     return NextResponse.json(apiError(API_ERROR_CODES.BAD_REQUEST, error.message), { status: 400 });
   }
 
-  return NextResponse.json(apiSuccess((rows ?? []) as Department[]));
+  const list = (rows ?? []) as (Department & { created_by?: string | null })[];
+  const creatorIds = [...new Set(list.map((r) => r.created_by).filter(Boolean))] as string[];
+  const creatorNames: Record<string, string> = {};
+  if (creatorIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, first_name, last_name, email")
+      .in("id", creatorIds);
+    if (profiles?.length) {
+      for (const p of profiles) {
+        const name = [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || p.email || p.id;
+        creatorNames[p.id] = name;
+      }
+    }
+  }
+  const withNames = list.map((r) => ({
+    ...r,
+    created_by_name: r.created_by ? creatorNames[r.created_by] ?? null : null,
+  }));
+
+  return NextResponse.json(apiSuccess(withNames as Department[]));
 }
 
 export type CreateDepartmentBody = {
@@ -90,6 +110,7 @@ export async function POST(
     code: typeof body.code === "string" && body.code.trim() ? body.code.trim() : null,
     parent_id: typeof body.parent_id === "string" && body.parent_id.trim() ? body.parent_id : null,
     sort_order: typeof body.sort_order === "number" ? body.sort_order : 0,
+    created_by: user.id,
   };
 
   const { data: row, error } = await supabase

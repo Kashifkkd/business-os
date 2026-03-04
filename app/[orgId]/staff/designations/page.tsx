@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { Pencil, Trash2, Plus } from "lucide-react";
 import {
   useReactTable,
@@ -49,7 +50,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   useDesignationsList,
-  useCreateDesignation,
   useUpdateDesignation,
   useDeleteDesignation,
 } from "@/hooks/use-designations";
@@ -67,14 +67,11 @@ export default function DesignationsPage() {
 
   const { data: designations = [], isLoading } = useDesignationsList(orgId);
   const { data: departments = [] } = useDepartmentsList(orgId);
-  const createDesig = useCreateDesignation(orgId);
   const updateDesig = useUpdateDesignation(orgId);
   const deleteDesig = useDeleteDesignation(orgId);
 
-  const [createOpen, setCreateOpen] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newDepartmentId, setNewDepartmentId] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingDesig, setEditingDesig] = useState<Designation | null>(null);
   const [editName, setEditName] = useState("");
   const [editDepartmentId, setEditDepartmentId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -85,43 +82,29 @@ export default function DesignationsPage() {
     return m;
   }, [departments]);
 
-  const handleAdd = async () => {
-    const name = newName.trim();
-    if (!name) return;
-    try {
-      await createDesig.mutateAsync({
-        name,
-        department_id: newDepartmentId || null,
-      });
-      setNewName("");
-      setNewDepartmentId(null);
-      setCreateOpen(false);
-    } catch {
-      // error handled by mutation
-    }
-  };
-
-  const startEdit = (d: Designation) => {
-    setEditingId(d.id);
+  const openEdit = (d: Designation) => {
+    setEditingDesig(d);
     setEditName(d.name);
     setEditDepartmentId(d.department_id ?? null);
+    setEditDialogOpen(true);
   };
 
-  const handleSaveEdit = useCallback(async () => {
-    if (!editingId) return;
+  const handleSaveEdit = async () => {
+    if (!editingDesig) return;
     const name = editName.trim();
     if (!name) return;
     try {
       await updateDesig.mutateAsync({
-        id: editingId,
+        id: editingDesig.id,
         name,
         department_id: editDepartmentId || null,
       });
-      setEditingId(null);
+      setEditDialogOpen(false);
+      setEditingDesig(null);
     } catch {
       // error handled by mutation
     }
-  }, [editingId, editName, editDepartmentId, updateDesig]);
+  };
 
   const handleDelete = async () => {
     if (!deleteId) return;
@@ -137,61 +120,14 @@ export default function DesignationsPage() {
     () => [
       columnHelper.accessor("name", {
         header: "Name",
-        cell: (ctx) => {
-          const d = ctx.row.original;
-          if (editingId === d.id) {
-            return (
-              <div className="flex items-center gap-2">
-                <Input
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  className="h-8 w-48"
-                />
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleSaveEdit}
-                  disabled={updateDesig.isPending}
-                >
-                  Save
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setEditingId(null)}
-                >
-                  Cancel
-                </Button>
-              </div>
-            );
-          }
-          return <span className="font-medium">{ctx.getValue()}</span>;
-        },
+        cell: (ctx) => (
+          <span className="font-medium">{ctx.getValue()}</span>
+        ),
       }),
       columnHelper.accessor("department_id", {
         header: "Department",
         cell: (ctx) => {
           const d = ctx.row.original;
-          if (editingId === d.id) {
-            return (
-              <Select
-                value={editDepartmentId ?? "none"}
-                onValueChange={(v) => setEditDepartmentId(v === "none" ? null : v)}
-              >
-                <SelectTrigger className="h-8 w-40">
-                  <SelectValue placeholder="All" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">— All —</SelectItem>
-                  {departments.map((dept) => (
-                    <SelectItem key={dept.id} value={dept.id}>
-                      {dept.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            );
-          }
           const name = d.department_id ? departmentById.get(d.department_id) : null;
           return (
             <span className="text-muted-foreground">{name ?? "—"}</span>
@@ -199,13 +135,32 @@ export default function DesignationsPage() {
         },
       }),
       columnHelper.accessor("created_at", {
-        header: "Created",
+        header: "Created at",
         cell: (ctx) => (
           <DateDisplay
             value={ctx.getValue()}
-            variant="timeAgo"
+            variant="datetime"
             layout="column"
           />
+        ),
+      }),
+      columnHelper.accessor("updated_at", {
+        header: "Updated at",
+        cell: (ctx) => (
+          <DateDisplay
+            value={ctx.getValue()}
+            variant="datetime"
+            layout="column"
+          />
+        ),
+      }),
+      columnHelper.display({
+        id: "created_by",
+        header: "Created by",
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {row.original.created_by_name ?? "—"}
+          </span>
         ),
       }),
       columnHelper.display({
@@ -213,14 +168,13 @@ export default function DesignationsPage() {
         header: "",
         cell: ({ row }) => {
           const d = row.original;
-          if (editingId === d.id) return null;
           return (
             <div className="flex gap-1">
               <Button
                 variant="ghost"
                 size="icon"
                 className="size-8"
-                onClick={() => startEdit(d)}
+                onClick={() => openEdit(d)}
                 aria-label="Edit"
               >
                 <Pencil className="size-3.5" />
@@ -239,15 +193,7 @@ export default function DesignationsPage() {
         },
       }),
     ],
-    [
-      editingId,
-      editName,
-      editDepartmentId,
-      departments,
-      departmentById,
-      updateDesig.isPending,
-      handleSaveEdit,
-    ]
+    [departmentById]
   );
 
   const table = useReactTable({
@@ -276,14 +222,16 @@ export default function DesignationsPage() {
               ? "No designations"
               : `${total} designation${total === 1 ? "" : "s"}`}
           </p>
-          <Button size="sm" onClick={() => setCreateOpen(true)} className="gap-1.5">
-            <Plus className="size-3.5" />
-            Create
+          <Button size="sm" asChild className="gap-1.5">
+            <Link href={`/${orgId}/staff/designations/new`}>
+              <Plus className="size-3.5" />
+              Create
+            </Link>
           </Button>
         </div>
 
         {isLoading ? (
-          <TableLoadingSkeleton columnCount={4} rowCount={8} compact />
+          <TableLoadingSkeleton columnCount={6} rowCount={8} compact />
         ) : isArrayWithValues(designations) ? (
           <div className="rounded-md border">
             <Table>
@@ -329,39 +277,41 @@ export default function DesignationsPage() {
             description="Add a job title to assign to employees (e.g. Manager, Barista, Sales Associate)."
             icon={Briefcase}
             action={
-              <Button size="sm" onClick={() => setCreateOpen(true)} className="gap-1.5">
-                <Plus className="size-3.5" />
-                Create designation
+              <Button size="sm" asChild className="gap-1.5">
+                <Link href={`/${orgId}/staff/designations/new`}>
+                  <Plus className="size-3.5" />
+                  Create designation
+                </Link>
               </Button>
             }
           />
         )}
       </div>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="sm:max-w-md" showCloseButton>
           <DialogHeader>
-            <DialogTitle>Add designation</DialogTitle>
+            <DialogTitle>Edit designation</DialogTitle>
             <DialogDescription>
-              Create a new job title (e.g. Manager, Barista). Optionally scope it to a department.
+              Update the job title and optional department.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label htmlFor="new-desig-name">Name</Label>
+              <Label htmlFor="edit-desig-name">Name</Label>
               <Input
-                id="new-desig-name"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
+                id="edit-desig-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
                 placeholder="e.g. Manager"
-                onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+                onKeyDown={(e) => e.key === "Enter" && handleSaveEdit()}
               />
             </div>
             <div className="space-y-2">
               <Label>Department (optional)</Label>
               <Select
-                value={newDepartmentId ?? "none"}
-                onValueChange={(v) => setNewDepartmentId(v === "none" ? null : v)}
+                value={editDepartmentId ?? "none"}
+                onValueChange={(v) => setEditDepartmentId(v === "none" ? null : v)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="All departments" />
@@ -381,17 +331,16 @@ export default function DesignationsPage() {
             <Button
               variant="outline"
               onClick={() => {
-                setCreateOpen(false);
-                setNewName("");
-                setNewDepartmentId(null);
+                setEditDialogOpen(false);
+                setEditingDesig(null);
               }}
             >
               Cancel
             </Button>
             <Button
               size="sm"
-              onClick={handleAdd}
-              disabled={createDesig.isPending || !newName.trim()}
+              onClick={handleSaveEdit}
+              disabled={updateDesig.isPending || !editName.trim()}
             >
               Save
             </Button>

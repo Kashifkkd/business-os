@@ -5,13 +5,8 @@ import Link from "next/link";
 import { useDeal, useUpdateDeal, usePipelineStages } from "@/hooks/use-sales";
 import { useLeads } from "@/hooks/use-leads";
 import { Button } from "@/components/ui/button";
-import {
-  DealForm,
-  dealToFormValues,
-  dealFormValuesToPayload,
-  type DealFormValues,
-} from "../deal-form";
 import { ArrowLeft } from "lucide-react";
+import { DealForm, DealFormValues, dealFormValuesToPayload, dealToFormValues } from "../../../deal-form";
 
 export default function EditDealPage() {
   const params = useParams();

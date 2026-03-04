@@ -22,6 +22,15 @@ import { EmptyState } from "@/components/empty-state";
 import { TableLoadingSkeleton } from "@/components/table-loading-skeleton";
 import { Paginated } from "@/components/paginated";
 import { DateDisplay } from "@/components/date-display";
+import { SearchBox } from "@/components/search-box";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { MarketingCampaign } from "@/lib/supabase/types";
 import type { GetMarketingCampaignsResult } from "@/hooks/use-marketing";
 import { FolderKanban, Pencil } from "lucide-react";
@@ -35,6 +44,23 @@ const STATUS_VARIANTS: Record<string, "secondary" | "default" | "outline" | "des
   completed: "outline",
 };
 
+const STATUS_OPTIONS = [
+  { value: "", label: "All statuses" },
+  { value: "draft", label: "Draft" },
+  { value: "scheduled", label: "Scheduled" },
+  { value: "running", label: "Running" },
+  { value: "paused", label: "Paused" },
+  { value: "completed", label: "Completed" },
+] as const;
+
+const CHANNEL_OPTIONS = [
+  { value: "", label: "All channels" },
+  { value: "email", label: "Email" },
+  { value: "sms", label: "SMS" },
+  { value: "whatsapp", label: "WhatsApp" },
+  { value: "social", label: "Social" },
+] as const;
+
 const columnHelper = createColumnHelper<MarketingCampaign>();
 
 type CampaignsTableProps = {
@@ -42,6 +68,12 @@ type CampaignsTableProps = {
   data: GetMarketingCampaignsResult;
   params: Record<string, string>;
   isLoading?: boolean;
+  searchValue: string;
+  onSearchChange: (value: string) => void;
+  status: string;
+  channel: string;
+  onStatusChange: (value: string) => void;
+  onChannelChange: (value: string) => void;
 };
 
 export function CampaignsTable({
@@ -49,6 +81,12 @@ export function CampaignsTable({
   data,
   params,
   isLoading = false,
+  searchValue,
+  onSearchChange,
+  status,
+  channel,
+  onStatusChange,
+  onChannelChange,
 }: CampaignsTableProps) {
   const page = data.page;
   const pageSize = data.pageSize;
@@ -68,7 +106,10 @@ export function CampaignsTable({
       columnHelper.accessor("status", {
         header: "Status",
         cell: (ctx) => (
-          <Badge variant={STATUS_VARIANTS[ctx.getValue()] ?? "secondary"} className="text-[10px] font-normal">
+          <Badge
+            variant={STATUS_VARIANTS[ctx.getValue()] ?? "secondary"}
+            className="text-[10px] font-normal"
+          >
             {String(ctx.getValue()).replace(/_/g, " ")}
           </Badge>
         ),
@@ -125,18 +166,57 @@ export function CampaignsTable({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-muted-foreground text-sm">
-          {total === 0
-            ? "No campaigns"
-            : `Showing ${from}–${to} of ${total} campaigns`}
-        </p>
-        <Button size="sm" asChild>
-          <Link href={`/${orgId}/marketing/campaigns/new`}>
-            <FolderKanban className="size-3.5" />
-            New campaign
-          </Link>
-        </Button>
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-muted-foreground text-sm">
+            {total === 0
+              ? "No campaigns"
+              : `Showing ${from}–${to} of ${total} campaigns`}
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <SearchBox
+              value={searchValue}
+              onChange={onSearchChange}
+              placeholder="Search campaigns..."
+              className="w-56 sm:w-64"
+            />
+            <Select
+              value={status || "all"}
+              onValueChange={(v) => onStatusChange(v === "all" ? "" : v)}
+            >
+              <SelectTrigger className="h-8 w-[140px] text-xs">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUS_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value || "all"} value={opt.value || "all"}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button size="sm" asChild>
+              <Link href={`/${orgId}/marketing/campaigns/new`}>
+                <FolderKanban className="size-3.5" />
+                New campaign
+              </Link>
+            </Button>
+          </div>
+        </div>
+
+        <Tabs
+          value={channel || "all"}
+          onValueChange={(v) => onChannelChange(v === "all" ? "" : v)}
+          className="mt-1"
+        >
+          <TabsList>
+            {CHANNEL_OPTIONS.map((ch) => (
+              <TabsTrigger key={ch.value || "all"} value={ch.value || "all"}>
+                {ch.label === "All channels" ? "All" : ch.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
       </div>
 
       {isLoading ? (
@@ -146,15 +226,18 @@ export function CampaignsTable({
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id} className="bg-muted/50 hover:bg-muted/50">
+                <TableRow
+                  key={headerGroup.id}
+                  className="bg-muted/50 hover:bg-muted/50"
+                >
                   {headerGroup.headers.map((header) => (
-                    <TableHead
-                      key={header.id}
-                      className="h-8 px-3 text-xs"
-                    >
+                    <TableHead key={header.id} className="h-8 px-3 text-xs">
                       {header.isPlaceholder
                         ? null
-                        : flexRender(header.column.columnDef.header, header.getContext())}
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
                     </TableHead>
                   ))}
                 </TableRow>
@@ -164,8 +247,14 @@ export function CampaignsTable({
               {table.getRowModel().rows.map((row) => (
                 <TableRow key={row.id}>
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="py-1.5 px-3 text-sm">
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    <TableCell
+                      key={cell.id}
+                      className="py-1.5 px-3 text-sm"
+                    >
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
                     </TableCell>
                   ))}
                 </TableRow>
@@ -183,8 +272,9 @@ export function CampaignsTable({
               <Link href={`/${orgId}/marketing/campaigns/new`}>
                 New campaign
               </Link>
-            }
-          />
+            </Button>
+          }
+        />
       )}
 
       {totalPages > 1 && (
@@ -200,3 +290,4 @@ export function CampaignsTable({
     </div>
   );
 }
+

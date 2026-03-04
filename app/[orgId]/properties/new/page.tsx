@@ -32,8 +32,8 @@ export default function NewPropertyPage() {
   if (!orgId) return null;
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-y-auto">
-      <div className="mx-auto w-full max-w-4xl space-y-4 px-2 py-4">
+    <div className="flex h-full w-full min-h-0 flex-col overflow-auto">
+      <div className="mx-auto w-full max-w-6xl space-y-4 px-2 py-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-row items-center gap-1">
             <Button variant="ghost" size="sm" asChild>

@@ -22,6 +22,7 @@ import { EmptyState } from "@/components/empty-state";
 import { TableLoadingSkeleton } from "@/components/table-loading-skeleton";
 import { Paginated } from "@/components/paginated";
 import { DateDisplay } from "@/components/date-display";
+import { SearchBox } from "@/components/search-box";
 import type { MarketingTemplate } from "@/lib/supabase/types";
 import type { GetMarketingTemplatesResult } from "@/hooks/use-marketing";
 import { FileText, Pencil } from "lucide-react";
@@ -34,6 +35,8 @@ type TemplatesTableProps = {
   data: GetMarketingTemplatesResult;
   params: Record<string, string>;
   isLoading?: boolean;
+  searchValue: string;
+  onSearchChange: (value: string) => void;
 };
 
 export function TemplatesTable({
@@ -41,6 +44,8 @@ export function TemplatesTable({
   data,
   params,
   isLoading = false,
+  searchValue,
+  onSearchChange,
 }: TemplatesTableProps) {
   const page = data.page;
   const pageSize = data.pageSize;
@@ -113,12 +118,20 @@ export function TemplatesTable({
         <p className="text-muted-foreground text-sm">
           {total === 0 ? "No templates" : `Showing ${from}–${to} of ${total} templates`}
         </p>
-        <Button size="sm" asChild>
-          <Link href={`/${orgId}/marketing/templates/new`}>
-            <FileText className="size-3.5" />
-            New template
-          </Link>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <SearchBox
+            value={searchValue}
+            onChange={onSearchChange}
+            placeholder="Search templates..."
+            className="w-56 sm:w-64"
+          />
+          <Button size="sm" asChild>
+            <Link href={`/${orgId}/marketing/templates/new`}>
+              <FileText className="size-3.5" />
+              New template
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (

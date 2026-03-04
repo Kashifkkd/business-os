@@ -245,9 +245,10 @@ export interface Picklist {
   created_at: string;
   updated_at: string;
   warehouse_name?: string | null;
+  sales_order_number?: string | null;
 }
 
-export interface Package {
+export interface InventoryPackage {
   id: string;
   tenant_id: string;
   picklist_id: string;
@@ -971,6 +972,9 @@ export interface Department {
   sort_order: number;
   created_at: string;
   updated_at: string;
+  created_by: string | null;
+  /** Resolved from profiles for display */
+  created_by_name?: string | null;
 }
 
 export interface Designation {
@@ -982,6 +986,9 @@ export interface Designation {
   level: number | null;
   created_at: string;
   updated_at: string;
+  created_by: string | null;
+  /** Resolved from profiles for display */
+  created_by_name?: string | null;
 }
 
 export interface Employee {

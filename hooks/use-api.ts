@@ -158,6 +158,24 @@ export const queryKeys = {
   vendors: (orgId: string) => ["orgs", orgId, "inventory", "vendors"] as const,
   vendor: (orgId: string, vendorId: string) => ["orgs", orgId, "inventory", "vendors", vendorId] as const,
   inventoryAnalytics: (orgId: string) => ["orgs", orgId, "inventory", "analytics"] as const,
+  purchaseOrders: (orgId: string, params: { page: number; pageSize: number; search?: string; status?: string }) =>
+    ["orgs", orgId, "inventory", "purchase-orders", params.page, params.pageSize, params.search ?? "", params.status ?? ""] as const,
+  purchaseOrder: (orgId: string, poId: string) => ["orgs", orgId, "inventory", "purchase-orders", poId] as const,
+  inventoryBills: (orgId: string, params: { page: number; pageSize: number; search?: string; status?: string }) =>
+    ["orgs", orgId, "inventory", "bills", params.page, params.pageSize, params.search ?? "", params.status ?? ""] as const,
+  inventoryBill: (orgId: string, billId: string) => ["orgs", orgId, "inventory", "bills", billId] as const,
+  salesOrders: (orgId: string, params: { page: number; pageSize: number; search?: string; status?: string }) =>
+    ["orgs", orgId, "inventory", "sales-orders", params.page, params.pageSize, params.search ?? "", params.status ?? ""] as const,
+  salesOrder: (orgId: string, orderId: string) => ["orgs", orgId, "inventory", "sales-orders", orderId] as const,
+  picklists: (orgId: string, params: { page: number; pageSize: number; status?: string }) =>
+    ["orgs", orgId, "inventory", "picklists", params.page, params.pageSize, params.status ?? ""] as const,
+  picklist: (orgId: string, picklistId: string) => ["orgs", orgId, "inventory", "picklists", picklistId] as const,
+  inventoryPackages: (orgId: string, params: { page: number; pageSize: number; status?: string }) =>
+    ["orgs", orgId, "inventory", "packages", params.page, params.pageSize, params.status ?? ""] as const,
+  inventoryPackage: (orgId: string, packageId: string) => ["orgs", orgId, "inventory", "packages", packageId] as const,
+  compositeItems: (orgId: string, params: { page: number; pageSize: number; search?: string }) =>
+    ["orgs", orgId, "inventory", "composite-items", params.page, params.pageSize, params.search ?? ""] as const,
+  compositeItem: (orgId: string, compositeId: string) => ["orgs", orgId, "inventory", "composite-items", compositeId] as const,
   // Sales module
   salesPipelineStages: (orgId: string) => ["orgs", orgId, "sales", "pipeline-stages"] as const,
   deals: (

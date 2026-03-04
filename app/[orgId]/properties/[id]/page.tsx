@@ -17,7 +17,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PropertyForm, propertyToFormValues } from "../property-form";
+import { PropertyForm } from "../property-form";
+import { propertyToFormValues } from "@/lib/property-schema";
 import { ArrowLeft } from "lucide-react";
 
 export default function EditPropertyPage() {

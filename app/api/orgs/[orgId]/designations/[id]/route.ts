@@ -5,7 +5,7 @@ import { getTenantById } from "@/lib/supabase/queries";
 import type { Designation } from "@/lib/supabase/types";
 
 const DESIGNATION_SELECT =
-  "id, tenant_id, name, department_id, sort_order, level, created_at, updated_at";
+  "id, tenant_id, name, department_id, sort_order, level, created_at, updated_at, created_by";
 
 export async function GET(
   _request: Request,

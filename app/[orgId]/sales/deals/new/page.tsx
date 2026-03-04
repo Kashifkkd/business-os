@@ -11,7 +11,7 @@ import {
   emptyDealFormValues,
   dealFormValuesToPayload,
   type DealFormValues,
-} from "../deal-form";
+} from "../../deal-form";
 import { ArrowLeft } from "lucide-react";
 
 export default function NewDealPage() {
@@ -67,22 +67,22 @@ export default function NewDealPage() {
   if (!orgId) return null;
 
   return (
-    <div className="flex h-full w-full flex-col p-4">
-      <div className="mb-6 flex items-center gap-2">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href={`/${orgId}/sales/deals`}>
-            <ArrowLeft className="size-4" />
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-lg font-semibold tracking-tight">New deal</h1>
-          <p className="text-muted-foreground text-xs">
-            Create a new deal or opportunity.
-          </p>
+    <div className="flex h-full w-full min-h-0 flex-col overflow-auto">
+      <div className="mx-auto w-full max-w-6xl flex-1 space-y-4 px-2 py-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-row items-center gap-1">
+            <Button variant="ghost" size="sm" asChild>
+              <Link href={`/${orgId}/sales/deals`} className="gap-1.5">
+                <ArrowLeft className="size-4" />
+              </Link>
+            </Button>
+            <h1 className="text-md font-semibold tracking-tight text-foreground">
+              New deal
+            </h1>
+          </div>
         </div>
-      </div>
 
-      <DealForm
+        <DealForm
         initialValues={initialValues}
         mode="create"
         stages={stages}
@@ -91,6 +91,7 @@ export default function NewDealPage() {
         onCancel={() => router.push(`/${orgId}/sales/deals`)}
         isPending={createDeal.isPending}
       />
+      </div>
     </div>
   );
 }

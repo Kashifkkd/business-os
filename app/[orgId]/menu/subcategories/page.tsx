@@ -142,7 +142,7 @@ export default function MenuSubcategoriesPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {categories.map((c) => (
+                    {isArrayWithValues(categories) && categories.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.name}
                       </SelectItem>
@@ -207,8 +207,8 @@ export default function MenuSubcategoriesPage() {
 
   if (!orgId) return null;
 
-  const total = subcategories.length;
-  const hasCategories = categories.length > 0;
+  const total = isArrayWithValues(subcategories) ? subcategories.length : 0;
+  const hasCategories = isArrayWithValues(categories) && categories.length > 0;
 
   return (
     <div className="container mx-auto max-w-6xl p-4">
@@ -233,7 +233,7 @@ export default function MenuSubcategoriesPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All categories</SelectItem>
-                {categories.map((c) => (
+                {isArrayWithValues(categories) && categories.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.name}
                   </SelectItem>
@@ -311,7 +311,7 @@ export default function MenuSubcategoriesPage() {
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
-                  {categories.map((c) => (
+                  {isArrayWithValues(categories) && categories.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.name}
                     </SelectItem>

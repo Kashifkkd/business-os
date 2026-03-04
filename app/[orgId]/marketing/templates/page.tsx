@@ -2,14 +2,10 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useSearchParams, useRouter, usePathname } from "next/navigation";
-import Link from "next/link";
 import { useMarketingTemplates } from "@/hooks/use-marketing";
 import { useDebounce } from "@/hooks/use-debounce";
 import { TemplatesTable } from "./templates-table";
-import { SearchBox } from "@/components/search-box";
-import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus } from "lucide-react";
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 10;
@@ -30,15 +26,10 @@ export default function MarketingTemplatesPage() {
   const pathname = usePathname();
   const orgId = params?.orgId as string;
 
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-
   const searchFromUrl = searchParams.get("search") ?? "";
-  const channelFromUrl = searchParams.get("channel") ?? "";
   const [searchInput, setSearchInput] = useState(searchFromUrl);
   const debouncedSearch = useDebounce(searchInput, SEARCH_DEBOUNCE_MS);
 
-  useEffect(() => setSearchInput(searchFromUrl), [searchFromUrl]);
 
   const setParams = useCallback(
     (updates: { page?: number; search?: string; channel?: string }) => {
@@ -75,7 +66,7 @@ export default function MarketingTemplatesPage() {
   const { data, isLoading, isRefetching } = useMarketingTemplates(
     orgId,
     { page, pageSize, search: search.trim() || undefined, channel: channel.trim() || undefined },
-    { enabled: !!orgId && mounted }
+    { enabled: !!orgId }
   );
 
   const tableData = data ?? {
@@ -96,27 +87,11 @@ export default function MarketingTemplatesPage() {
 
   return (
     <div className="container mx-auto max-w-6xl p-4">
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Templates</h1>
-          <p className="text-muted-foreground text-sm">
-            Email, SMS, WhatsApp, and social templates for campaigns.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <SearchBox
-            value={searchInput}
-            onChange={setSearchInput}
-            placeholder="Search templates..."
-            className="w-56 sm:w-64"
-          />
-          <Button asChild>
-            <Link href={`/${orgId}/marketing/templates/new`}>
-              <Plus className="size-3.5" />
-              New template
-            </Link>
-          </Button>
-        </div>
+      <div className="mb-4">
+        <h1 className="text-lg font-semibold">Templates</h1>
+        <p className="text-muted-foreground text-sm">
+          Email, SMS, WhatsApp, and social templates for campaigns.
+        </p>
       </div>
 
       <Tabs
@@ -138,6 +113,8 @@ export default function MarketingTemplatesPage() {
         data={tableData}
         params={searchParamsForTable}
         isLoading={isLoading || isRefetching}
+        searchValue={searchInput}
+        onSearchChange={setSearchInput}
       />
     </div>
   );

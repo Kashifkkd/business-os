@@ -329,7 +329,7 @@ export function LeadsTable({
 
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
 
 
       {/* Bulk actions toolbar – sticky when any row is selected */}
@@ -420,14 +420,11 @@ export function LeadsTable({
       {isLoading ? (
         <TableLoadingSkeleton columnCount={5} rowCount={10} compact />
       ) : isArrayWithValues(items) ? (
-        <div className="rounded-md border">
+        <div className="relative flex min-h-[260px] max-h-[520px] flex-1 flex-col overflow-y-auto rounded-md border">
           <Table>
-            <TableHeader>
+            <TableHeader className="sticky top-0 z-10 bg-muted/60 backdrop-blur">
               {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow
-                  key={headerGroup.id}
-                  className="bg-muted/50 hover:bg-muted/50"
-                >
+                <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
                     <TableHead
                       key={header.id}
@@ -495,6 +492,7 @@ export function LeadsTable({
           totalPages={totalPages}
           defaultPageSize={10}
           params={searchParamsForPaginated}
+          pageSizeOptions={[10, 25, 50, 100]}
         />
       )}
     </div>

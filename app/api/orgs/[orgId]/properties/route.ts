@@ -51,6 +51,7 @@ export type CreatePropertyBody = {
   reference_id?: string | null;
   features?: Record<string, unknown> | null;
   notes?: string | null;
+  images?: string[] | null;
 };
 
 export async function POST(

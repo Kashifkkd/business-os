@@ -409,6 +409,8 @@ export interface Property {
   // Optional metadata
   notes?: string | null;
   created_by?: string | null;
+  /** Image URLs (e.g. from Storage); first is primary/cover. */
+  images?: string[];
 }
 
 export interface Listing {

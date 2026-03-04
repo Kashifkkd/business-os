@@ -88,6 +88,11 @@ export function buildPropertyPayload(
         : null;
   }
   if (body.notes !== undefined) payload.notes = str("notes");
+  if (body.images !== undefined) {
+    payload.images = Array.isArray(body.images)
+      ? (body.images as string[]).filter((u): u is string => typeof u === "string" && u.trim().length > 0)
+      : null;
+  }
   if (options.forInsert && options.createdBy) payload.created_by = options.createdBy;
   return payload;
 }

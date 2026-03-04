@@ -1256,7 +1256,7 @@ export const getTenantMembers = cache(async function getTenantMembers(
 // ——— Real estate: properties ———
 
 const PROPERTY_SELECT =
-  "id, tenant_id, address, type, created_at, updated_at, address_line_1, address_line_2, city, state_or_province, postal_code, country, property_type, category_id, subcategory_id, bedrooms, bathrooms, half_baths, living_area_sqft, lot_size_sqft, year_built, parcel_number, reference_id, features, notes, created_by";
+  "id, tenant_id, address, type, created_at, updated_at, address_line_1, address_line_2, city, state_or_province, postal_code, country, property_type, category_id, subcategory_id, bedrooms, bathrooms, half_baths, living_area_sqft, lot_size_sqft, year_built, parcel_number, reference_id, features, notes, created_by, images";
 
 export interface GetPropertiesParams {
   page?: number;

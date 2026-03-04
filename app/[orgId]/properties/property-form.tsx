@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   propertyFormSchema,
@@ -32,6 +32,7 @@ import { Button } from "@/components/ui/button";
 import { usePropertyCategoriesList } from "@/hooks/use-property-categories";
 import { usePropertySubcategoriesList } from "@/hooks/use-property-subcategories";
 import { isArrayWithValues } from "@/lib/is-array-with-values";
+import { PropertyImageUpload } from "./property-image-upload";
 
 export type PropertyFormProps = {
   orgId: string;
@@ -55,7 +56,7 @@ export function PropertyForm({
   isDeleting = false,
 }: PropertyFormProps) {
   const form = useForm<PropertyFormValues>({
-    resolver: zodResolver(propertyFormSchema),
+    resolver: zodResolver(propertyFormSchema) as Resolver<PropertyFormValues>,
     defaultValues: initialValues,
   });
 
@@ -76,15 +77,41 @@ export function PropertyForm({
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold text-foreground">
-            Address
-          </CardTitle>
-          <CardDescription>
-            Full address and structured address fields (optional).
-          </CardDescription>
-        </CardHeader>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <Card className="xl:col-span-2">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold text-foreground">
+              Photos
+            </CardTitle>
+            <CardDescription>
+              Add up to 12 images. First image is the cover. Drag to reorder.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Controller
+              control={form.control}
+              name="images"
+              render={({ field }) => (
+                <PropertyImageUpload
+                  orgId={orgId}
+                  urls={field.value ?? []}
+                  onChange={field.onChange}
+                  disabled={isPending}
+                />
+              )}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold text-foreground">
+              Address
+            </CardTitle>
+            <CardDescription>
+              Full address and structured address fields (optional).
+            </CardDescription>
+          </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="address">Address (display) *</Label>
@@ -165,14 +192,14 @@ export function PropertyForm({
               className="h-9"
             />
           </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold text-foreground">
-            Classification
-          </CardTitle>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold text-foreground">
+              Classification
+            </CardTitle>
           <CardDescription>
             Property type and category (optional).
           </CardDescription>
@@ -268,14 +295,14 @@ export function PropertyForm({
               />
             </div>
           </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold text-foreground">
-            Characteristics
-          </CardTitle>
+        <Card className="xl:col-span-2">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold text-foreground">
+              Characteristics
+            </CardTitle>
           <CardDescription>
             Beds, baths, area, lot, year built.
           </CardDescription>
@@ -412,14 +439,14 @@ export function PropertyForm({
               />
             </div>
           </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold text-foreground">
-            Identifiers & notes
-          </CardTitle>
+        <Card className="xl:col-span-2">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold text-foreground">
+              Identifiers & notes
+            </CardTitle>
           <CardDescription>
             Parcel number, reference ID, and internal notes.
           </CardDescription>
@@ -458,8 +485,9 @@ export function PropertyForm({
               className="resize-none"
             />
           </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <Button type="submit" disabled={isPending} size="sm">

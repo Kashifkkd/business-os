@@ -33,7 +33,7 @@ export default function NewPropertyPage() {
 
   return (
     <div className="flex h-full w-full min-h-0 flex-col overflow-auto">
-      <div className="mx-auto w-full max-w-6xl space-y-4 px-2 py-4">
+      <div className="w-full space-y-4 px-4 py-4 sm:px-6 lg:px-8">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-row items-center gap-1">
             <Button variant="ghost" size="sm" asChild>
@@ -41,7 +41,7 @@ export default function NewPropertyPage() {
                 <ArrowLeft className="size-4" />
               </Link>
             </Button>
-            <h1 className="text-md font-semibold tracking-tight text-foreground">
+            <h1 className="text-lg font-semibold tracking-tight text-foreground">
               Add property
             </h1>
           </div>

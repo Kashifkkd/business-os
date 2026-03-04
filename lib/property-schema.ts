@@ -20,8 +20,8 @@ export const propertyFormSchema = z.object({
   postal_code: z.string().trim(),
   country: z.string().trim(),
   property_type: z.string().trim(),
-  category_id: z.string().trim().optional().transform((s) => (s && s.length > 0 ? s : undefined)),
-  subcategory_id: z.string().trim().optional().transform((s) => (s && s.length > 0 ? s : undefined)),
+  category_id: z.string().trim().default(""),
+  subcategory_id: z.string().trim().default(""),
   bedrooms: z
     .union([z.number().int().min(0).max(99), z.nan()])
     .optional()
@@ -53,6 +53,7 @@ export const propertyFormSchema = z.object({
   reference_id: z.string().trim(),
   notes: z.string().trim(),
   features: z.record(z.string(), z.unknown()).optional().nullable(),
+  images: z.array(z.string().url()).default([]),
 });
 
 export type PropertyFormValues = z.infer<typeof propertyFormSchema>;
@@ -79,6 +80,7 @@ export const emptyPropertyFormValues: PropertyFormValues = {
   reference_id: "",
   notes: "",
   features: null,
+  images: [],
 };
 
 /** Map form values to API create/update payload (empty strings → null). */
@@ -104,6 +106,7 @@ export function propertyFormValuesToPayload(values: PropertyFormValues): {
   reference_id?: string | null;
   notes?: string | null;
   features?: Record<string, unknown> | null;
+  images?: string[] | null;
 } {
   const opt = (s: string) => (s && s.trim() ? s.trim() : null);
   return {
@@ -128,6 +131,7 @@ export function propertyFormValuesToPayload(values: PropertyFormValues): {
     reference_id: opt(values.reference_id),
     notes: opt(values.notes),
     features: values.features ?? null,
+    images: Array.isArray(values.images) && values.images.length > 0 ? values.images : null,
   };
 }
 
@@ -140,6 +144,8 @@ const NUMBER_FORM_KEYS = new Set<keyof PropertyFormValues>([
   "lot_size_sqft",
   "year_built",
 ]);
+
+const ARRAY_FORM_KEYS = new Set<keyof PropertyFormValues>(["images"]);
 
 /** Map Property from API to form values (for edit). Uses defaults + overlay; add new fields only to emptyPropertyFormValues. */
 export function propertyToFormValues(
@@ -154,6 +160,8 @@ export function propertyToFormValues(
       (result as Record<string, unknown>)[key] = raw;
     } else if (key === "features") {
       result.features = raw as Record<string, unknown> | null;
+    } else if (ARRAY_FORM_KEYS.has(key)) {
+      result.images = Array.isArray(raw) ? [...raw] : [];
     } else {
       (result as Record<string, unknown>)[key] = String(raw);
     }

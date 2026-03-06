@@ -64,7 +64,7 @@ export default function PropertyCategoriesPage() {
   });
   const subCountByCategoryId = useMemo(() => {
     const map = new Map<string, number>();
-    for (const s of allSubcategories) {
+    for (const s of isArrayWithValues(allSubcategories) ? allSubcategories : []) {
       map.set(s.category_id, (map.get(s.category_id) ?? 0) + 1);
     }
     return map;

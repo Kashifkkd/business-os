@@ -61,8 +61,6 @@ export function Paginated({
 }: PaginatedProps) {
   const router = useRouter();
 
-  if (totalPages <= 1) return null;
-
   const pages = [
     1,
     ...Array.from({ length: totalPages }, (_, i) => i + 1).filter(
@@ -95,6 +93,9 @@ export function Paginated({
     },
     [pathname, params, defaultPageSize, router]
   );
+
+  if (totalPages <= 1) return null;
+
 
   return (
     <div className="sticky bottom-0 z-20 border-t bg-background/95 px-2 py-2 backdrop-blur">

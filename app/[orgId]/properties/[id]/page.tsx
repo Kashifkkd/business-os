@@ -75,7 +75,7 @@ export default function EditPropertyPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto">
-      <div className="container mx-auto max-w-4xl space-y-4 p-4">
+      <div className="container mx-auto w-full space-y-4 px-6 py-4">
         <div className="mb-4">
           <Button variant="ghost" size="sm" asChild>
             <Link href={`/${orgId}/properties`}>

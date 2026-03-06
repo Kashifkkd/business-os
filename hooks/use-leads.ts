@@ -217,15 +217,82 @@ export function useLeadActivities(
 export function useCreateLeadActivity(
   orgId: string,
   leadId: string,
-  options?: UseMutationOptions<LeadActivity, Error, { type?: string; content?: string | null }>
+  options?: UseMutationOptions<
+    LeadActivity,
+    Error,
+    { type?: string; content?: string | null; metadata?: Record<string, unknown> }
+  >
 ) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { type?: string; content?: string | null }) =>
+    mutationFn: (body: {
+      type?: string;
+      content?: string | null;
+      metadata?: Record<string, unknown>;
+    }) =>
       fetcherData<LeadActivity>(`${API}/orgs/${orgId}/leads/${leadId}/activities`, {
         method: "POST",
-        body: JSON.stringify({ type: body.type ?? "note", content: body.content ?? null }),
+        body: JSON.stringify({
+          type: body.type ?? "note",
+          content: body.content ?? null,
+          metadata: body.metadata ?? {},
+        }),
       }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.leadActivities(orgId, leadId) });
+    },
+    ...options,
+  });
+}
+
+/** Update a lead activity (e.g. note). Invalidates activities for that lead. */
+export function useUpdateLeadActivity(
+  orgId: string,
+  leadId: string,
+  options?: UseMutationOptions<
+    LeadActivity,
+    Error,
+    { activityId: string; content?: string | null; metadata?: Record<string, unknown> }
+  >
+) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      activityId,
+      content,
+      metadata,
+    }: {
+      activityId: string;
+      content?: string | null;
+      metadata?: Record<string, unknown>;
+    }) =>
+      fetcherData<LeadActivity>(
+        `${API}/orgs/${orgId}/leads/${leadId}/activities/${activityId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ content: content ?? null, metadata: metadata ?? {} }),
+        }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.leadActivities(orgId, leadId) });
+    },
+    ...options,
+  });
+}
+
+/** Delete a lead activity (e.g. note). Invalidates activities for that lead. */
+export function useDeleteLeadActivity(
+  orgId: string,
+  leadId: string,
+  options?: UseMutationOptions<{ deleted: true }, Error, string>
+) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (activityId: string) =>
+      fetcherData<{ deleted: true }>(
+        `${API}/orgs/${orgId}/leads/${leadId}/activities/${activityId}`,
+        { method: "DELETE" }
+      ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.leadActivities(orgId, leadId) });
     },

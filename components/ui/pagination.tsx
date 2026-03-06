@@ -58,7 +58,7 @@ function PaginationLink({
       className={cn(className)}
     >
       <Link
-        href={props.href}
+        // href={props.href}
         aria-current={isActive ? "page" : undefined}
         data-slot="pagination-link"
         data-active={isActive}

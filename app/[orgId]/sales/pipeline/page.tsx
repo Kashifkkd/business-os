@@ -65,13 +65,13 @@ export default function SalesPipelinePage() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto w-full max-w-6xl p-4">
-        <h1 className="text-lg font-semibold mb-4">Pipeline</h1>
-        <div className="flex gap-4 overflow-auto pb-4">
+      <div className="flex h-full min-h-0 flex-col p-4">
+        <h1 className="mb-4 shrink-0 text-lg font-semibold">Pipeline</h1>
+        <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto pb-4">
           {(stages ?? [{}]).map((_, i) => (
             <div
               key={i}
-              className="h-64 w-64 shrink-0 rounded-md border border-dashed bg-muted/30 animate-pulse"
+              className="h-full w-64 shrink-0 rounded-md border border-dashed bg-muted/30 animate-pulse"
             />
           ))}
         </div>
@@ -90,27 +90,29 @@ export default function SalesPipelinePage() {
       </Button>
     );
     return (
-      <div className="container mx-auto w-full max-w-6xl p-4">
-        <h1 className="text-lg font-semibold mb-2">Pipeline</h1>
-        <p className="text-muted-foreground text-sm mb-4">
+      <div className="flex h-full min-h-0 flex-col p-4">
+        <h1 className="mb-2 shrink-0 text-lg font-semibold">Pipeline</h1>
+        <p className="mb-4 shrink-0 text-sm text-muted-foreground">
           Create deals to see them in the pipeline.
         </p>
-        <EmptyState
-          title="No deals"
-          description="Add deals to see them in the pipeline."
-          icon={LayoutGrid}
-          action={emptyAction}
-        />
+        <div className="flex min-h-0 flex-1 items-center">
+          <EmptyState
+            title="No deals"
+            description="Add deals to see them in the pipeline."
+            icon={LayoutGrid}
+            action={emptyAction}
+          />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto w-full max-w-6xl p-4">
-      <div className="mb-4 flex items-center justify-between">
+    <div className="flex h-full min-h-0 flex-col p-4">
+      <div className="mb-4 flex shrink-0 items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold">Pipeline</h1>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             Drag cards between columns to change stage.
           </p>
         </div>
@@ -122,23 +124,23 @@ export default function SalesPipelinePage() {
         </Button>
       </div>
 
-      <div className="flex gap-4 overflow-x-auto pb-4">
+      <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto pb-4">
         {(stages ?? []).map((stage) => (
           <div
             key={stage.id}
             className={cn(
-              "flex min-h-[320px] w-64 shrink-0 flex-col rounded-md border bg-muted/20"
+              "flex h-full min-h-0 w-64 shrink-0 flex-col rounded-md border bg-muted/20"
             )}
             onDragOver={handleDragOver}
             onDrop={(e) => handleDrop(e, stage.id)}
           >
-            <div className="border-b px-3 py-2">
+            <div className="shrink-0 border-b px-3 py-2">
               <h2 className="font-medium text-sm">{stage.name}</h2>
               <p className="text-muted-foreground text-xs">
                 {(byStage.get(stage.id) ?? []).length} deals
               </p>
             </div>
-            <div className="flex-1 overflow-y-auto p-2 space-y-2">
+            <div className="min-h-0 flex-1 overflow-y-auto p-2 space-y-2">
               {(byStage.get(stage.id) ?? []).map((deal) => (
                 <Card
                   key={deal.id}

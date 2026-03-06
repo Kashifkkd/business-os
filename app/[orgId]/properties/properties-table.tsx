@@ -61,6 +61,33 @@ export function PropertiesTable({
 
   const columns = useMemo(
     () => [
+      columnHelper.accessor((row) => row.images?.[0], {
+        id: "cover",
+        header: "",
+        cell: (ctx) => {
+          const coverUrl = ctx.getValue();
+          return (
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded border bg-muted">
+              {coverUrl ? (
+                <a
+                  href={coverUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block h-full w-full"
+                >
+                  <img
+                    src={coverUrl}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                </a>
+              ) : (
+                <Home className="size-5 text-muted-foreground" />
+              )}
+            </div>
+          );
+        },
+      }),
       columnHelper.accessor("address", {
         header: "Address",
         cell: (ctx) => (
@@ -186,7 +213,7 @@ export function PropertiesTable({
       </div>
 
       {isLoading || isRefetching ? (
-        <TableLoadingSkeleton columnCount={8} rowCount={10} compact />
+        <TableLoadingSkeleton columnCount={9} rowCount={10} compact />
       ) : isArrayWithValues(data.items) ? (
         <div className="rounded-md border">
           <Table>

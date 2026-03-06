@@ -120,6 +120,12 @@ public = true
 file_size_limit = "5MiB"
 allowed_mime_types = ["image/jpeg", "image/png", "image/webp"]
 
+# Property images (path: {org_id}/{uuid}-{filename})
+[storage.buckets.property-images]
+public = true
+file_size_limit = "5MiB"
+allowed_mime_types = ["image/jpeg", "image/png", "image/webp"]
+
 # User profile avatars (path: {user_id}/avatar.{ext})
 [storage.buckets.avatars]
 public = true

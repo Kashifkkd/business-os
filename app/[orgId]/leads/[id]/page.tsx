@@ -36,6 +36,7 @@ export default function LeadDetailPage() {
   const deleteLead = useDeleteLead(orgId);
   const updateLead = useUpdateLead(orgId, leadId);
   const { data: activities = [], isLoading: activitiesLoading } = useLeadActivities(orgId, leadId);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const handleDeleteClick = () => setDeleteDialogOpen(true);
@@ -65,9 +66,13 @@ export default function LeadDetailPage() {
     if (lead?.email) navigator.clipboard.writeText(lead.email);
   };
 
-  const handleRefresh = () => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.lead(orgId, leadId) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.leadActivities(orgId, leadId) });
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await Promise.all([
+      queryClient.refetchQueries({ queryKey: queryKeys.lead(orgId, leadId) }),
+      queryClient.refetchQueries({ queryKey: queryKeys.leadActivities(orgId, leadId) }),
+    ]);
+    setIsRefreshing(false);
   };
 
   if (!orgId || !leadId) return null;
@@ -78,6 +83,10 @@ export default function LeadDetailPage() {
 
   if (!lead) {
     return <LeadDetailNotFound orgId={orgId} />;
+  }
+
+  if (isRefreshing) {
+    return <LeadDetailLoading />;
   }
 
   return (

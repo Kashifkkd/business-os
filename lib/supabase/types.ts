@@ -476,6 +476,61 @@ export interface LeadActivity {
   created_by: string | null;
 }
 
+// ——— Activities module (calls, meetings) ———
+
+export type ActivityCallType = "inbound" | "outbound";
+
+export type ActivityCallStatus =
+  | "attended"
+  | "missed"
+  | "busy"
+  | "no_answer"
+  | "other";
+
+export interface ActivityCall {
+  id: string;
+  tenant_id: string;
+  lead_id: string | null;
+  deal_id: string | null;
+  subject: string | null;
+  description: string | null;
+  call_type: ActivityCallType;
+  call_status: ActivityCallStatus;
+  call_start_time: string;
+  duration_seconds: number | null;
+  call_result: string | null;
+  call_agenda: string | null;
+  call_purpose: string | null;
+  owner_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  lead_name?: string | null;
+  deal_name?: string | null;
+  owner_name?: string | null;
+}
+
+export interface ActivityMeeting {
+  id: string;
+  tenant_id: string;
+  lead_id: string | null;
+  deal_id: string | null;
+  title: string;
+  description: string | null;
+  start_time: string;
+  end_time: string;
+  venue: string | null;
+  all_day: boolean;
+  participant_ids: string[];
+  owner_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  lead_name?: string | null;
+  deal_name?: string | null;
+  owner_name?: string | null;
+}
+
 // ——— Marketing module (cross-industry) ———
 
 export type MarketingChannel = "email" | "sms" | "whatsapp" | "social";

@@ -72,9 +72,9 @@ export default function FinanceInvoiceDetailPage() {
             <span className="text-muted-foreground">Balance</span>
             <span>{(invoice.balance as number).toLocaleString()}</span>
           </div>
-          {invoice.notes && (
-            <p className="text-muted-foreground text-sm">{invoice.notes as string}</p>
-          )}
+          {invoice.notes ? (
+            <p className="text-muted-foreground text-sm">{String(invoice.notes)}</p>
+          ) : null}
           <div className="rounded-md border">
             <Table>
               <TableHeader>

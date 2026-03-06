@@ -13,13 +13,30 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
+/** Preset keys stored in URL. Use dateRangeToApiParams() to derive API params at call time. */
+export type DatePresetId =
+  | "allTime"
+  | "today"
+  | "yesterday"
+  | "last15"
+  | "thisWeek"
+  | "thisMonth"
+  | "lastMonth"
+  | "custom";
+
 export type DateRangeValue = {
+  presetId?: DatePresetId;
   from: string;
   to: string;
   label: string;
 };
 
-const PRESETS: { id: string; label: string; getValue: () => DateRangeValue }[] = [
+/** Local date in yyyy-MM-dd (avoids UTC timezone bugs). */
+function toLocalDateStr(d: Date): string {
+  return format(d, "yyyy-MM-dd");
+}
+
+export const DATE_PRESETS: { id: DatePresetId; label: string; getValue: () => DateRangeValue }[] = [
   {
     id: "allTime",
     label: "All time",
@@ -27,8 +44,9 @@ const PRESETS: { id: string; label: string; getValue: () => DateRangeValue }[] =
       const end = new Date();
       const start = new Date(2000, 0, 1);
       return {
-        from: start.toISOString().slice(0, 10),
-        to: end.toISOString().slice(0, 10),
+        presetId: "allTime",
+        from: toLocalDateStr(start),
+        to: toLocalDateStr(end),
         label: "All time",
       };
     },
@@ -38,8 +56,8 @@ const PRESETS: { id: string; label: string; getValue: () => DateRangeValue }[] =
     label: "Today",
     getValue: () => {
       const d = new Date();
-      const s = d.toISOString().slice(0, 10);
-      return { from: s, to: s, label: "Today" };
+      const s = toLocalDateStr(d);
+      return { presetId: "today", from: s, to: s, label: "Today" };
     },
   },
   {
@@ -48,21 +66,37 @@ const PRESETS: { id: string; label: string; getValue: () => DateRangeValue }[] =
     getValue: () => {
       const d = new Date();
       d.setDate(d.getDate() - 1);
-      const s = d.toISOString().slice(0, 10);
-      return { from: s, to: s, label: "Yesterday" };
+      const s = toLocalDateStr(d);
+      return { presetId: "yesterday", from: s, to: s, label: "Yesterday" };
     },
   },
   {
-    id: "last7",
-    label: "Last 7 days",
+    id: "last15",
+    label: "Last 15 days",
     getValue: () => {
       const end = new Date();
       const start = new Date();
-      start.setDate(start.getDate() - 6);
+      start.setDate(start.getDate() - 14);
       return {
-        from: start.toISOString().slice(0, 10),
-        to: end.toISOString().slice(0, 10),
-        label: "Last 7 days",
+        presetId: "last15",
+        from: toLocalDateStr(start),
+        to: toLocalDateStr(end),
+        label: "Last 15 days",
+      };
+    },
+  },
+  {
+    id: "thisWeek",
+    label: "This week",
+    getValue: () => {
+      const d = new Date();
+      const start = new Date(d);
+      start.setDate(start.getDate() - start.getDay());
+      return {
+        presetId: "thisWeek",
+        from: toLocalDateStr(start),
+        to: toLocalDateStr(d),
+        label: "This week",
       };
     },
   },
@@ -74,8 +108,9 @@ const PRESETS: { id: string; label: string; getValue: () => DateRangeValue }[] =
       const start = new Date(d.getFullYear(), d.getMonth(), 1);
       const end = new Date();
       return {
-        from: start.toISOString().slice(0, 10),
-        to: end.toISOString().slice(0, 10),
+        presetId: "thisMonth",
+        from: toLocalDateStr(start),
+        to: toLocalDateStr(end),
         label: "This month",
       };
     },
@@ -88,35 +123,58 @@ const PRESETS: { id: string; label: string; getValue: () => DateRangeValue }[] =
       const start = new Date(d.getFullYear(), d.getMonth() - 1, 1);
       const end = new Date(d.getFullYear(), d.getMonth(), 0);
       return {
-        from: start.toISOString().slice(0, 10),
-        to: end.toISOString().slice(0, 10),
+        presetId: "lastMonth",
+        from: toLocalDateStr(start),
+        to: toLocalDateStr(end),
         label: "Last month",
       };
     },
   },
 ];
 
+/**
+ * Derive API date params from preset key and optional custom dates.
+ * Call this right before API requests so presets like "today" are always fresh.
+ */
+export function dateRangeToApiParams(
+  presetId: DatePresetId | string,
+  customFrom?: string,
+  customTo?: string
+): { dateFrom?: string; dateTo?: string } {
+  if (presetId === "allTime" || !presetId) return {};
+  if (presetId === "custom") {
+    const from = (customFrom ?? "").trim().slice(0, 10);
+    const to = (customTo ?? "").trim().slice(0, 10);
+    if (from && to) return { dateFrom: from, dateTo: to };
+    return {};
+  }
+  const preset = DATE_PRESETS.find((p) => p.id === presetId);
+  if (!preset) return {};
+  const v = preset.getValue();
+  return { dateFrom: v.from, dateTo: v.to };
+}
+
+/** Parse date-only string (yyyy-MM-dd) as local noon to avoid timezone off-by-one. */
+function parseDateSafe(s: string): Date {
+  const trimmed = (s ?? "").slice(0, 10);
+  if (!trimmed || trimmed.length < 10) return new Date();
+  return new Date(trimmed + "T12:00:00");
+}
+
 function formatRangeLabel(from: string, to: string): string {
-  const a = new Date(from);
-  const b = new Date(to);
+  const a = parseDateSafe(from);
+  const b = parseDateSafe(to);
   return `${format(a, "LLL dd, y")} – ${format(b, "LLL dd, y")}`;
 }
 
 /** If value matches a preset, return preset label; otherwise return formatted date range (custom). */
 function getDisplayLabel(value: DateRangeValue): string {
-  const fromDate = (value.from ?? "").slice(0, 10);
-  const toDate = (value.to ?? "").slice(0, 10);
-  const today = new Date().toISOString().slice(0, 10);
-  // All time: range starting 2000-01-01 up to today (or any end) → always show "All time", never dates
-  if (fromDate === "2000-01-01" && (!toDate || toDate <= today || toDate >= "2000-01-01")) {
-    return "All time";
+  if (value.presetId === "custom") return value.label || formatRangeLabel(value.from, value.to);
+  if (value.presetId) {
+    const preset = DATE_PRESETS.find((p) => p.id === value.presetId);
+    return preset?.label ?? value.label;
   }
-  for (const preset of PRESETS) {
-    if (preset.id === "allTime") continue;
-    const p = preset.getValue();
-    if (p.from === fromDate && p.to === toDate) return preset.label;
-  }
-  return value.label;
+  return value.label || formatRangeLabel(value.from, value.to);
 }
 
 
@@ -150,7 +208,7 @@ export function DateRangeFilter({
   }, [open, value]);
 
   const handlePreset = useCallback(
-    (preset: (typeof PRESETS)[number]) => {
+    (preset: (typeof DATE_PRESETS)[number]) => {
       const next = preset.getValue();
       onChange(next);
       setOpen(false);
@@ -159,20 +217,42 @@ export function DateRangeFilter({
   );
 
   const handleCustomApply = useCallback(() => {
-    const from = customFrom || format(new Date(), "yyyy-MM-dd");
+    const from = customFrom || toLocalDateStr(new Date());
     const to = customTo || from;
-    const fromDate = new Date(from);
-    const toDate = new Date(to);
+    const fromDate = parseDateSafe(from);
+    const toDate = parseDateSafe(to);
     if (fromDate > toDate) {
-      onChange({ from: to, to: from, label: formatRangeLabel(to, from) });
+      onChange({
+        presetId: "custom",
+        from: to,
+        to: from,
+        label: formatRangeLabel(to, from),
+      });
     } else {
-      onChange({ from, to, label: formatRangeLabel(from, to) });
+      onChange({
+        presetId: "custom",
+        from,
+        to,
+        label: formatRangeLabel(from, to),
+      });
     }
     setOpen(false);
   }, [customFrom, customTo, onChange]);
 
-  const today = new Date().toISOString().slice(0, 10);
   const chipLabel = getDisplayLabel(value);
+  const selectedPresetId = (() => {
+    if (value.presetId) return value.presetId;
+    const from = (value.from ?? "").slice(0, 10);
+    const to = (value.to ?? "").slice(0, 10);
+    const today = toLocalDateStr(new Date());
+    if (from === "2000-01-01" && to === today) return "allTime";
+    for (const p of DATE_PRESETS) {
+      if (p.id === "allTime") continue;
+      const v = p.getValue();
+      if (v.from === from && v.to === to) return p.id;
+    }
+    return "custom";
+  })();
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -200,21 +280,22 @@ export function DateRangeFilter({
               Presets
             </p>
             <div className="grid grid-cols-2 gap-0.5">
-              {PRESETS.map((preset) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  className={cn(
-                    "rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted",
-                    (preset.id === "allTime"
-                      ? (value.from ?? "").slice(0, 10) === "2000-01-01" && ((value.to ?? "").slice(0, 10) <= today || (value.to ?? "").slice(0, 10) >= "2000-01-01")
-                      : (value.from ?? "").slice(0, 10) === preset.getValue().from && (value.to ?? "").slice(0, 10) === preset.getValue().to) && "bg-muted font-medium"
-                  )}
-                  onClick={() => handlePreset(preset)}
-                >
-                  {preset.label}
-                </button>
-              ))}
+              {DATE_PRESETS.map((preset) => {
+                const isSelected = selectedPresetId === preset.id;
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    className={cn(
+                      "rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted",
+                      isSelected && "bg-muted font-medium"
+                    )}
+                    onClick={() => handlePreset(preset)}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
           <div className="border-t p-3">
@@ -234,16 +315,16 @@ export function DateRangeFilter({
                         >
                           <CalendarIcon className="mr-2 size-3.5 text-muted-foreground" />
                           {customFrom
-                            ? format(new Date(customFrom), "LLL dd, y")
+                            ? format(parseDateSafe(customFrom), "LLL dd, y")
                             : "Pick date"}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
                           mode="single"
-                          selected={customFrom ? new Date(customFrom) : undefined}
+                          selected={customFrom ? parseDateSafe(customFrom) : undefined}
                           onSelect={(d) => d && setCustomFrom(format(d, "yyyy-MM-dd"))}
-                          defaultMonth={customFrom ? new Date(customFrom) : new Date()}
+                          defaultMonth={customFrom ? parseDateSafe(customFrom) : new Date()}
                         />
                       </PopoverContent>
                     </Popover>
@@ -259,16 +340,16 @@ export function DateRangeFilter({
                         >
                           <CalendarIcon className="mr-2 size-3.5 text-muted-foreground" />
                           {customTo
-                            ? format(new Date(customTo), "LLL dd, y")
+                            ? format(parseDateSafe(customTo), "LLL dd, y")
                             : "Pick date"}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
                           mode="single"
-                          selected={customTo ? new Date(customTo) : undefined}
+                          selected={customTo ? parseDateSafe(customTo) : undefined}
                           onSelect={(d) => d && setCustomTo(format(d, "yyyy-MM-dd"))}
-                          defaultMonth={customTo ? new Date(customTo) : new Date()}
+                          defaultMonth={customTo ? parseDateSafe(customTo) : new Date()}
                         />
                       </PopoverContent>
                     </Popover>
@@ -287,5 +368,5 @@ export function DateRangeFilter({
 
 /** Returns default range (All time) for initial state. */
 export function getDefaultDateRange(): DateRangeValue {
-  return PRESETS[0].getValue(); // All time
+  return DATE_PRESETS[0].getValue(); // All time
 }

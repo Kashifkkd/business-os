@@ -19,7 +19,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Pencil, Trash2, MessageSquare } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ArrowLeft, Pencil, Trash2, MessageSquare, Phone, Video } from "lucide-react";
+import { DealCallsTab } from "./_components/deal-calls-tab";
+import { DealMeetingsTab } from "./_components/deal-meetings-tab";
 
 function formatCurrency(value: number, symbol: string): string {
   return `${symbol}${value.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
@@ -177,53 +180,73 @@ export default function DealDetailPage() {
         </section>
 
         <section className="flex min-h-0 flex-col lg:col-span-8">
-          <Card className="flex min-h-0 flex-1 flex-col">
-            <CardHeader className="shrink-0">
-              <h2 className="flex items-center gap-2 text-sm font-semibold">
-                <MessageSquare className="size-4" />
-                Activity
-              </h2>
-            </CardHeader>
-            <CardContent className="flex min-h-0 flex-1 flex-col gap-4">
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const content = newNote.trim();
-                  if (!content || createActivity.isPending) return;
-                  createActivity.mutate({ type: "note", content }, { onSuccess: () => setNewNote("") });
-                }}
-                className="flex shrink-0 flex-col gap-2"
-              >
-                <Textarea
-                  placeholder="Add a note…"
-                  value={newNote}
-                  onChange={(e) => setNewNote(e.target.value)}
-                  rows={2}
-                  className="resize-none"
-                  disabled={createActivity.isPending}
-                />
-                <Button type="submit" size="sm" disabled={!newNote.trim() || createActivity.isPending}>
-                  {createActivity.isPending ? "Adding…" : "Add note"}
-                </Button>
-              </form>
-              <div className="min-h-0 overflow-y-auto">
-                {activitiesLoading ? (
-                  <p className="text-muted-foreground text-sm">Loading activity…</p>
-                ) : activities.length === 0 ? (
-                  <p className="text-muted-foreground text-sm">No activity yet.</p>
-                ) : (
-                  <ul className="space-y-3 border-l-2 border-muted pl-4">
-                    {activities.map((a) => (
-                      <li key={a.id} className="text-sm">
-                        <span className="text-muted-foreground capitalize">{a.type.replace("_", " ")}</span>
-                        <span className="text-muted-foreground"> · {new Date(a.created_at).toLocaleString()}</span>
-                        {a.content && <p className="mt-0.5 whitespace-pre-wrap">{a.content}</p>}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </CardContent>
+          <Card className="flex min-h-0 flex-1 flex-col py-0 gap-0">
+            <Tabs defaultValue="activity" className="flex h-full min-h-0 flex-1 flex-col">
+              <TabsList className="w-full shrink-0 rounded-b-none border-b border-border px-4">
+                <TabsTrigger value="activity">
+                  <MessageSquare className="size-3.5" />
+                  Activity
+                </TabsTrigger>
+                <TabsTrigger value="calls">
+                  <Phone className="size-3.5" />
+                  Calls
+                </TabsTrigger>
+                <TabsTrigger value="meetings">
+                  <Video className="size-3.5" />
+                  Meetings
+                </TabsTrigger>
+              </TabsList>
+              <CardContent className="min-h-0 flex-1 overflow-hidden rounded-t-none border-0 p-0 pt-0">
+                <TabsContent value="activity" className="mt-0 flex h-full flex-col overflow-hidden data-[state=inactive]:hidden">
+                  <div className="flex flex-1 flex-col gap-4 p-4">
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        const content = newNote.trim();
+                        if (!content || createActivity.isPending) return;
+                        createActivity.mutate({ type: "note", content }, { onSuccess: () => setNewNote("") });
+                      }}
+                      className="flex shrink-0 flex-col gap-2"
+                    >
+                      <Textarea
+                        placeholder="Add a note…"
+                        value={newNote}
+                        onChange={(e) => setNewNote(e.target.value)}
+                        rows={2}
+                        className="resize-none"
+                        disabled={createActivity.isPending}
+                      />
+                      <Button type="submit" size="sm" disabled={!newNote.trim() || createActivity.isPending}>
+                        {createActivity.isPending ? "Adding…" : "Add note"}
+                      </Button>
+                    </form>
+                    <div className="min-h-0 overflow-y-auto">
+                      {activitiesLoading ? (
+                        <p className="text-muted-foreground text-sm">Loading activity…</p>
+                      ) : activities.length === 0 ? (
+                        <p className="text-muted-foreground text-sm">No activity yet.</p>
+                      ) : (
+                        <ul className="space-y-3 border-l-2 border-muted pl-4">
+                          {activities.map((a) => (
+                            <li key={a.id} className="text-sm">
+                              <span className="text-muted-foreground capitalize">{a.type.replace("_", " ")}</span>
+                              <span className="text-muted-foreground"> · {new Date(a.created_at).toLocaleString()}</span>
+                              {a.content && <p className="mt-0.5 whitespace-pre-wrap">{a.content}</p>}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
+                </TabsContent>
+                <TabsContent value="calls" className="mt-0 flex h-full flex-col overflow-hidden data-[state=inactive]:hidden">
+                  <DealCallsTab orgId={orgId} dealId={dealId} />
+                </TabsContent>
+                <TabsContent value="meetings" className="mt-0 flex h-full flex-col overflow-hidden data-[state=inactive]:hidden">
+                  <DealMeetingsTab orgId={orgId} dealId={dealId} />
+                </TabsContent>
+              </CardContent>
+            </Tabs>
           </Card>
         </section>
       </div>

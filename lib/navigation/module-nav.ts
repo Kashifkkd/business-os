@@ -26,6 +26,8 @@ import {
   Landmark,
   Wallet,
   ReceiptText,
+  Phone,
+  Video,
 } from "lucide-react";
 
 export interface SubNavItem {
@@ -82,6 +84,24 @@ export function getLeadsModuleNav(basePath: string): ModuleNavConfig {
   };
 }
 
+/** Activities module sub-nav (path-based: shown when user is under /activities). */
+export function getActivitiesModuleNav(basePath: string): ModuleNavConfig {
+  const base = basePath;
+  const activities = `${base}/activities`;
+  return {
+    title: "ACTIVITIES",
+    pathPrefixes: [
+      activities,
+      `${activities}/calls`,
+      `${activities}/meetings`,
+    ],
+    items: [
+      { href: `${activities}/calls`, label: "Calls", icon: Phone },
+      { href: `${activities}/meetings`, label: "Meetings", icon: Video },
+    ],
+  };
+}
+
 /** Tasks module sub-nav (path-based: shown when user is under /tasks). */
 export function getTasksModuleNav(basePath: string): ModuleNavConfig {
   const base = basePath;
@@ -130,6 +150,10 @@ export function getModuleNavConfigForPath(
   const leadsPrefix = `${basePath}/leads`;
   if (pathname === leadsPrefix || pathname.startsWith(leadsPrefix + "/")) {
     return getLeadsModuleNav(basePath);
+  }
+  const activitiesPrefix = `${basePath}/activities`;
+  if (pathname === activitiesPrefix || pathname.startsWith(activitiesPrefix + "/")) {
+    return getActivitiesModuleNav(basePath);
   }
   const tasksPrefix = `${basePath}/tasks`;
   if (pathname === tasksPrefix || pathname.startsWith(tasksPrefix + "/")) {

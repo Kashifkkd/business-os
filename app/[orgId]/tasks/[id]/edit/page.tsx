@@ -1,19 +1,19 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import {
   useTask,
   useSpaces,
   useSpaceStatuses,
-  useSpaceLabels,
   useUpdateTask,
 } from "@/hooks/use-tasks";
 import { useOrganization } from "@/hooks/use-organization";
-import { TaskForm, type TaskFormValues } from "../../task-form";
-import { Button } from "@/components/ui/button";
+import {
+  ProjectTaskFormEditor,
+  type ProjectTaskFormValues,
+} from "../../_components/project-task-form-editor";
+import { ProjectTaskEditorHeader } from "../../_components/project-task-editor-header";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft } from "lucide-react";
 
 export default function EditTaskPage() {
   const params = useParams();
@@ -25,11 +25,10 @@ export default function EditTaskPage() {
   const { data: task, isLoading: taskLoading, isError } = useTask(orgId, taskId);
   const { data: spaces = [] } = useSpaces(orgId);
   const { data: statuses = [] } = useSpaceStatuses(orgId, task?.space_id);
-  const { data: labels = [] } = useSpaceLabels(orgId, task?.space_id);
   const { orgMembers = [] } = useOrganization(orgId, { enabled: !!orgId });
   const updateTask = useUpdateTask(orgId, taskId);
 
-  const handleSubmit = async (values: TaskFormValues) => {
+  const handleSubmit = async (values: ProjectTaskFormValues) => {
     try {
       await updateTask.mutateAsync({
         list_id: values.list_id,
@@ -52,15 +51,22 @@ export default function EditTaskPage() {
     user_id: m.user_id,
     first_name: m.first_name,
     last_name: m.last_name,
+    avatar_url: null as string | null,
   }));
 
   if (!orgId || !taskId) return null;
 
   if (taskLoading) {
     return (
-      <div className="flex flex-col gap-4 p-6">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-64 w-full" />
+      <div className="flex h-full flex-col overflow-hidden">
+        <div className="flex shrink-0 items-center gap-4 border-b border-border px-4 py-3">
+          <Skeleton className="size-8 rounded" />
+          <Skeleton className="h-4 w-24" />
+        </div>
+        <div className="flex min-h-0 flex-1 gap-6 p-6">
+          <Skeleton className="h-64 flex-1" />
+          <Skeleton className="hidden h-64 w-72 lg:block" />
+        </div>
       </div>
     );
   }
@@ -70,32 +76,34 @@ export default function EditTaskPage() {
     return null;
   }
 
+  const taskHref = `${base}/tasks/${taskId}`;
+
   return (
-    <div className="flex h-full w-full min-h-0 flex-col overflow-auto">
-      <div className="flex flex-col gap-6 p-6 max-w-2xl">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href={`${base}/tasks/${taskId}`}>
-            <ArrowLeft className="mr-2 size-4" />
-            Back to task
-          </Link>
-        </Button>
+    <div className="flex h-full w-full flex-col overflow-hidden">
+      <ProjectTaskEditorHeader
+        listHref={taskHref}
+        title="Edit"
+        onSave={() =>
+          (
+            document.getElementById("project-task-form") as HTMLFormElement | null
+          )?.requestSubmit?.()
+        }
+        isSubmitting={updateTask.isPending}
+        submitLabel="Save"
+      />
 
-        <h1 className="text-2xl font-semibold">Edit task</h1>
-
-        <TaskForm
-          key={task.id}
-          orgId={orgId}
-          initialTask={task}
-          spaces={spaces}
-          statuses={statuses}
-          labels={labels}
-          members={membersForForm}
-          onSubmit={handleSubmit}
-          isSubmitting={updateTask.isPending}
-          submitLabel="Save changes"
-          cancelHref={`${base}/tasks/${taskId}`}
-        />
-      </div>
+      <ProjectTaskFormEditor
+        key={task.id}
+        orgId={orgId}
+        initialTask={task}
+        spaces={spaces}
+        statuses={statuses}
+        members={membersForForm}
+        onSubmit={handleSubmit}
+        isSubmitting={updateTask.isPending}
+        submitLabel="Save changes"
+        cancelHref={taskHref}
+      />
     </div>
   );
 }

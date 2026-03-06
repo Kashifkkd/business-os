@@ -6,13 +6,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LeadActivityTab } from "./lead-activity-tab";
 import { LeadNotesTab } from "./lead-notes-tab";
+import { LeadCallsTab } from "./lead-calls-tab";
+import { LeadMeetingsTab } from "./lead-meetings-tab";
 import { ComingSoonPlaceholder } from "./coming-soon-placeholder";
 import type { LeadActivity } from "@/lib/supabase/types";
-import { MessageSquare, ListTodo, Mail, MessageCircle, FolderOpen, StickyNote } from "lucide-react";
+import { MessageSquare, Mail, MessageCircle, FolderOpen, StickyNote, Phone, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ArrowUpDown, Filter } from "lucide-react";
 
-const TAB_VALUES = ["activity", "notes", "tasks", "emails", "communications", "documents"] as const;
+const TAB_VALUES = ["activity", "notes", "calls", "meetings", "emails", "communications", "documents"] as const;
 type TabValue = (typeof TAB_VALUES)[number];
 
 function isValidTab(tab: string | null): tab is TabValue {
@@ -65,9 +67,13 @@ export function LeadDetailTabs({
             <StickyNote className="size-3.5" />
             Notes
           </TabsTrigger>
-          <TabsTrigger value="tasks">
-            <ListTodo className="size-3.5" />
-            Tasks
+          <TabsTrigger value="calls">
+            <Phone className="size-3.5" />
+            Calls
+          </TabsTrigger>
+          <TabsTrigger value="meetings">
+            <Video className="size-3.5" />
+            Meetings
           </TabsTrigger>
           <TabsTrigger value="emails">
             <Mail className="size-3.5" />
@@ -94,23 +100,11 @@ export function LeadDetailTabs({
               activitiesLoading={activitiesLoading}
             />
           </TabsContent>
-          <TabsContent value="tasks" className="mt-0 h-full overflow-auto data-[state=inactive]:hidden">
-            <div className="flex items-center justify-between border-b border-border px-4 py-3">
-              <span className="text-sm font-medium">Tasks</span>
-              <div className="flex gap-2">
-                <Button variant="ghost" size="sm" disabled>
-                  <ArrowUpDown className="size-3.5" />
-                  Sort
-                </Button>
-                <Button variant="ghost" size="sm" disabled>
-                  <Filter className="size-3.5" />
-                  Filters
-                </Button>
-              </div>
-            </div>
-            <div className="p-4">
-              <ComingSoonPlaceholder title="Tasks" />
-            </div>
+          <TabsContent value="calls" className="mt-0 flex h-full flex-col overflow-hidden data-[state=inactive]:hidden">
+            <LeadCallsTab orgId={orgId} leadId={leadId} />
+          </TabsContent>
+          <TabsContent value="meetings" className="mt-0 flex h-full flex-col overflow-hidden data-[state=inactive]:hidden">
+            <LeadMeetingsTab orgId={orgId} leadId={leadId} />
           </TabsContent>
           <TabsContent value="emails" className="mt-0 h-full overflow-auto data-[state=inactive]:hidden">
             <div className="flex items-center justify-between border-b border-border px-4 py-3">

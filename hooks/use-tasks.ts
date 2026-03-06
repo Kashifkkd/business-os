@@ -126,6 +126,27 @@ export function useSpaceLabels(
   });
 }
 
+export type CreateLabelPayload = { name: string; color?: string | null; sort_order?: number };
+
+export function useCreateLabel(
+  orgId: string,
+  spaceId: string,
+  options?: UseMutationOptions<TaskLabel, Error, CreateLabelPayload>
+) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CreateLabelPayload) =>
+      fetcherData<TaskLabel>(`${API}/orgs/${orgId}/spaces/${spaceId}/labels`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.spaceLabels(orgId, spaceId) });
+    },
+    ...options,
+  });
+}
+
 /** Paginated tasks list. */
 export function useTasks(
   orgId: string | undefined,

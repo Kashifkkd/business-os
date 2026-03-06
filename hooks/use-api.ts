@@ -211,6 +211,63 @@ export const queryKeys = {
     ] as const,
   deal: (orgId: string, dealId: string) => ["orgs", orgId, "sales", "deals", dealId] as const,
   dealActivities: (orgId: string, dealId: string) => ["orgs", orgId, "sales", "deals", dealId, "activities"] as const,
+  // Activities module (calls, meetings)
+  activityCalls: (
+    orgId: string,
+    params: {
+      page: number;
+      pageSize: number;
+      search?: string;
+      leadId?: string;
+      dealId?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      ownerId?: string;
+    }
+  ) =>
+    [
+      "orgs",
+      orgId,
+      "activities",
+      "calls",
+      params.page,
+      params.pageSize,
+      params.search ?? "",
+      params.leadId ?? "",
+      params.dealId ?? "",
+      params.dateFrom ?? "",
+      params.dateTo ?? "",
+      params.ownerId ?? "",
+    ] as const,
+  activityCall: (orgId: string, callId: string) => ["orgs", orgId, "activities", "calls", callId] as const,
+  activityMeetings: (
+    orgId: string,
+    params: {
+      page: number;
+      pageSize: number;
+      search?: string;
+      leadId?: string;
+      dealId?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      ownerId?: string;
+    }
+  ) =>
+    [
+      "orgs",
+      orgId,
+      "activities",
+      "meetings",
+      params.page,
+      params.pageSize,
+      params.search ?? "",
+      params.leadId ?? "",
+      params.dealId ?? "",
+      params.dateFrom ?? "",
+      params.dateTo ?? "",
+      params.ownerId ?? "",
+    ] as const,
+  activityMeeting: (orgId: string, meetingId: string) => ["orgs", orgId, "activities", "meetings", meetingId] as const,
   salesStats: (orgId: string) => ["orgs", orgId, "sales", "stats"] as const,
   salesForecast: (orgId: string) => ["orgs", orgId, "sales", "forecast"] as const,
   salesAnalytics: (orgId: string) => ["orgs", orgId, "sales", "analytics"] as const,

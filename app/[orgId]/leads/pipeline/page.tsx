@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import { format } from "date-fns";
 import {
   DndContext,
   DragOverlay,
@@ -27,8 +28,14 @@ import { formatTimeAgo } from "@/lib/format";
 import type { Lead, LeadStatus } from "@/lib/supabase/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/empty-state";
-import { UserPlus, LayoutGrid, Mail, Phone, Building2, Calendar, AlertCircle } from "lucide-react";
+import {
+  DateRangeFilter,
+  getDefaultDateRange,
+  type DateRangeValue,
+} from "@/components/date-range-filter";
+import { UserPlus, LayoutGrid, Mail, Phone, Building2, Calendar, AlertCircle, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const SLOT_PREFIX = "slot-";
@@ -210,13 +217,89 @@ function PipelineColumn({ status, label, leads, orgId, sourceColors }: PipelineC
   );
 }
 
+function PipelineColumnSkeleton({ status, label }: { status: LeadStatus; label: string }) {
+  const colors = getStageColors(status);
+
+  return (
+    <div
+      className={cn(
+        "flex h-full min-h-0 w-72 shrink-0 flex-col overflow-hidden rounded-lg border-2 bg-background",
+        colors.border
+      )}
+    >
+      <div className={cn("shrink-0 border-b border-border/50 px-3 py-2", colors.bgMuted)}>
+        <h2 className={cn("font-semibold text-sm capitalize", colors.text)}>{label}</h2>
+        <Skeleton className="mt-1 h-3 w-12" />
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto bg-background px-2 py-2">
+        <div className="space-y-2">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-24 w-full rounded-md" />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function LeadsPipelinePage() {
   const params = useParams();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const orgId = params?.orgId as string;
 
-  const { data, isLoading } = useLeads(orgId, {
+  const createdAfter = searchParams.get("created_after") ?? "";
+  const createdBefore = searchParams.get("created_before") ?? "";
+
+  const dateRangeValue: DateRangeValue = useMemo(() => {
+    const defaultRange = getDefaultDateRange();
+    if (!createdAfter?.trim() || !createdBefore?.trim()) {
+      return defaultRange;
+    }
+    const fromStr = createdAfter.slice(0, 10);
+    const toStr = createdBefore.slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
+    const isAllTime = fromStr === "2000-01-01" && (toStr <= today || toStr >= "2000-01-01");
+    if (isAllTime) {
+      return { from: fromStr, to: toStr, label: "All time" };
+    }
+    const from = new Date(createdAfter);
+    const to = new Date(createdBefore);
+    return {
+      from: createdAfter,
+      to: createdBefore,
+      label: `${format(from, "LLL dd, yy")} – ${format(to, "LLL dd, yy")}`,
+    };
+  }, [createdAfter, createdBefore]);
+
+  const setParams = useCallback(
+    (updates: { created_after?: string; created_before?: string }) => {
+      const next = new URLSearchParams(searchParams.toString());
+      const ca = updates.created_after ?? searchParams.get("created_after") ?? "";
+      const cb = updates.created_before ?? searchParams.get("created_before") ?? "";
+      if (ca) next.set("created_after", ca);
+      else next.delete("created_after");
+      if (cb) next.set("created_before", cb);
+      else next.delete("created_before");
+      const q = next.toString();
+      router.push(`${pathname}${q ? `?${q}` : ""}`);
+    },
+    [pathname, router, searchParams]
+  );
+
+  const handleDateRangeChange = useCallback(
+    (value: DateRangeValue) => {
+      setParams({ created_after: value.from, created_before: value.to });
+    },
+    [setParams]
+  );
+
+  const { data, isLoading, isRefetching, refetch } = useLeads(orgId, {
     page: 1,
     pageSize: 500,
+    created_after: createdAfter || undefined,
+    created_before: createdBefore || undefined,
   });
   const { data: sourcesData } = useLeadSources(orgId);
   const sourceColors = sourceColorMap(sourcesData?.sources ?? []);
@@ -254,6 +337,13 @@ export default function LeadsPipelinePage() {
     null
   );
   const [updateError, setUpdateError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await refetch();
+    setIsRefreshing(false);
+  }, [refetch]);
 
   useEffect(() => {
     if (!updateError) return;
@@ -349,49 +439,18 @@ export default function LeadsPipelinePage() {
 
   if (!orgId) return null;
 
-  if (isLoading) {
-    return (
-      <div className="flex h-full min-h-0 flex-col p-4">
-        <h1 className="mb-4 shrink-0 text-lg font-semibold">Pipeline</h1>
-        <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto pb-4">
-          {PIPELINE_STATUSES.map(({ status }) => (
-            <div
-              key={status}
-              className="h-full w-72 shrink-0 rounded-lg border-2 border-dashed bg-muted/30 animate-pulse"
-            />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   const totalLeads = data?.items?.length ?? 0;
-  if (totalLeads === 0) {
-    const emptyAction = (
-      <Button size="sm" asChild>
-        <Link href={`/${orgId}/leads/new`}>
-          <UserPlus className="size-3.5" />
-          Add lead
-        </Link>
-      </Button>
-    );
-    return (
-      <div className="flex h-full min-h-0 flex-col p-4">
-        <h1 className="mb-2 shrink-0 text-lg font-semibold">Pipeline</h1>
-        <p className="mb-4 shrink-0 text-sm text-muted-foreground">
-          View and move leads by stage.
-        </p>
-        <div className="flex min-h-0 flex-1 items-center">
-          <EmptyState
-            title="No leads"
-            description="Add leads to see them in the pipeline."
-            icon={LayoutGrid}
-            action={emptyAction}
-          />
-        </div>
-      </div>
-    );
-  }
+  const showSkeleton = isLoading || isRefetching;
+  const showEmpty = !showSkeleton && totalLeads === 0;
+
+  const emptyAction = (
+    <Button size="sm" asChild>
+      <Link href={`/${orgId}/leads/new`}>
+        <UserPlus className="size-3.5" />
+        Add lead
+      </Link>
+    </Button>
+  );
 
   return (
     <DndContext
@@ -400,32 +459,71 @@ export default function LeadsPipelinePage() {
       onDragEnd={handleDragEnd}
     >
       <div className="flex flex-1 flex-col max-h-full min-h-full h-full px-4 py-2 overflow-auto">
-        <div className="mb-4 flex shrink-0 items-center justify-between">
+        <div className="mb-4 flex shrink-0 items-center justify-between gap-4">
           <div>
             <h1 className="text-lg font-semibold">Pipeline</h1>
             <p className="text-sm text-muted-foreground">
               Drag cards between columns to update status.
             </p>
           </div>
-          <Button size="sm" asChild>
-            <Link href={`/${orgId}/leads/new`}>
-              <UserPlus className="size-3.5" />
-              New lead
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <DateRangeFilter
+              value={dateRangeValue}
+              onChange={handleDateRangeChange}
+              placeholder="Date range"
+              className="min-w-[140px]"
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleRefresh}
+              disabled={isRefreshing || isRefetching}
+              aria-label="Refresh"
+            >
+              <RefreshCw
+                className={cn("size-3.5", (isRefreshing || isRefetching) && "animate-spin")}
+              />
+            </Button>
+            <Button size="sm" asChild>
+              <Link href={`/${orgId}/leads/new`}>
+                <UserPlus className="size-3.5" />
+                New lead
+              </Link>
+            </Button>
+          </div>
         </div>
 
         <div className="flex h-full flex-1 gap-4 overflow-auto pb-2">
-          {PIPELINE_STATUSES.map(({ status, label }) => (
-            <PipelineColumn
-              key={status}
-              status={status}
-              label={label}
-              leads={displayByStatus[status]}
-              orgId={orgId}
-              sourceColors={sourceColors}
-            />
-          ))}
+          {showSkeleton ? (
+            <>
+              {PIPELINE_STATUSES.map(({ status, label }) => (
+                <PipelineColumnSkeleton key={status} status={status} label={label} />
+              ))}
+            </>
+          ) : showEmpty ? (
+            <div className="flex w-full min-w-0 flex-1 items-center">
+              <EmptyState
+                title="No leads"
+                description="Add leads to see them in the pipeline."
+                icon={LayoutGrid}
+                action={emptyAction}
+                className="w-full"
+              />
+            </div>
+          ) : (
+            <>
+              {PIPELINE_STATUSES.map(({ status, label }) => (
+                <PipelineColumn
+                  key={status}
+                  status={status}
+                  label={label}
+                  leads={displayByStatus[status]}
+                  orgId={orgId}
+                  sourceColors={sourceColors}
+                />
+              ))}
+            </>
+          )}
         </div>
       </div>
 

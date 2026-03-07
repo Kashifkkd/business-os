@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { apiSuccess, apiError, API_ERROR_CODES } from "@/lib/api-response";
 import { getTenantById } from "@/lib/supabase/queries";
+import { createActivityLog, ACTIONS, ENTITY_TYPES } from "@/lib/activity-log";
 import type { LeadSourceItem } from "@/lib/lead-sources";
 import { DEFAULT_SOURCE_COLOR, normalizeSourceColor } from "@/lib/lead-sources";
 
@@ -38,14 +39,32 @@ export async function GET(
     return NextResponse.json(apiError(API_ERROR_CODES.BAD_REQUEST, error.message), { status: 400 });
   }
 
+  const list = rows ?? [];
+  const creatorIds = [...new Set(list.map((r) => r.created_by).filter(Boolean))] as string[];
+  const creatorMap: Record<string, { id: string; name: string | null; email: string | null; avatar_url: string | null }> = {};
+  if (creatorIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, first_name, last_name, email, avatar_url")
+      .in("id", creatorIds);
+    if (profiles?.length) {
+      for (const p of profiles) {
+        const name = [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || null;
+        creatorMap[p.id] = { id: p.id, name, email: p.email ?? null, avatar_url: p.avatar_url ?? null };
+      }
+    }
+  }
+
   const sources: LeadSourceItem[] =
-    rows?.length > 0
-      ? rows.map((r) => ({
+    list.length > 0
+      ? list.map((r) => ({
           id: r.id,
           name: String(r.name ?? "").trim(),
           color: normalizeSourceColor(r.color),
           created_at: r.created_at,
-          created_by: r.created_by ?? null,
+          created_by: r.created_by
+            ? creatorMap[r.created_by] ?? { id: r.created_by, name: null, email: null, avatar_url: null }
+            : null,
         }))
       : FALLBACK_SOURCES;
 
@@ -140,13 +159,40 @@ export async function PATCH(
     .order("sort_order", { ascending: true })
     .order("name", { ascending: true });
 
-  const result: LeadSourceItem[] = (updated ?? []).map((r) => ({
+  const updatedList = updated ?? [];
+  const creatorIds = [...new Set(updatedList.map((r) => r.created_by).filter(Boolean))] as string[];
+  const creatorMap: Record<string, { id: string; name: string | null; email: string | null; avatar_url: string | null }> = {};
+  if (creatorIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, first_name, last_name, email, avatar_url")
+      .in("id", creatorIds);
+    if (profiles?.length) {
+      for (const p of profiles) {
+        const name = [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || null;
+        creatorMap[p.id] = { id: p.id, name, email: p.email ?? null, avatar_url: p.avatar_url ?? null };
+      }
+    }
+  }
+
+  const result: LeadSourceItem[] = updatedList.map((r) => ({
     id: r.id,
     name: String(r.name ?? "").trim(),
     color: normalizeSourceColor(r.color),
     created_at: r.created_at,
-    created_by: r.created_by ?? null,
+    created_by: r.created_by
+      ? creatorMap[r.created_by] ?? { id: r.created_by, name: null, email: null, avatar_url: null }
+      : null,
   }));
+
+  await createActivityLog(supabase, {
+    tenantId: orgId,
+    userId: user.id,
+    action: ACTIONS.UPDATE,
+    resourceType: ENTITY_TYPES.LEAD_SOURCE,
+    description: "Updated lead sources",
+    metadata: {},
+  });
 
   return NextResponse.json(apiSuccess({ sources: result }));
 }

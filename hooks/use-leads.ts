@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-query";
 import type { Lead, LeadActivity } from "@/lib/supabase/types";
 import type { LeadSourceItem } from "@/lib/lead-sources";
+import type { LeadStageItem } from "@/lib/lead-stages";
 import { queryKeys, fetcherData, API } from "@/hooks/use-api";
 
 export interface GetLeadsResult {
@@ -19,32 +20,36 @@ export interface GetLeadsResult {
 }
 
 export type CreateLeadPayload = {
-  name: string;
+  first_name: string;
+  last_name?: string | null;
   email?: string | null;
   phone?: string | null;
-  company?: string | null;
+  company_id?: string | null;
   source?: string | null;
-  status?: string | null;
+  stage_id?: string | null;
   notes?: string | null;
   metadata?: Record<string, unknown>;
+  assignee_ids?: string[];
 };
 
 export type UpdateLeadPayload = Partial<{
-  name: string;
+  first_name: string;
+  last_name: string | null;
   email: string | null;
   phone: string | null;
-  company: string | null;
+  company_id: string | null;
   source: string | null;
-  status: string;
+  stage_id: string;
   notes: string | null;
   metadata: Record<string, unknown>;
+  assignee_ids: string[];
 }>;
 
 export type UseLeadsParams = {
   page: number;
   pageSize: number;
   search?: string;
-  status?: string;
+  stage?: string;
   source?: string;
   created_after?: string;
   created_before?: string;
@@ -62,7 +67,7 @@ export function useLeads(
     page,
     pageSize,
     search,
-    status,
+    stage,
     source,
     created_after,
     created_before,
@@ -74,7 +79,7 @@ export function useLeads(
       page,
       pageSize,
       search,
-      status,
+      stage,
       source,
       created_after,
       created_before,
@@ -87,7 +92,7 @@ export function useLeads(
       if (page > 1) sp.set("page", String(page));
       if (pageSize !== 10) sp.set("pageSize", String(pageSize));
       if (search) sp.set("search", search);
-      if (status) sp.set("status", status);
+      if (stage) sp.set("stage", stage);
       if (source) sp.set("source", source);
       if (created_after) sp.set("created_after", created_after);
       if (created_before) sp.set("created_before", created_before);
@@ -337,17 +342,54 @@ export function useUpdateLeadSources(
   });
 }
 
-/** Bulk update lead status. */
-export function useBulkUpdateLeadsStatus(
+/** Lead stage options for the org. */
+export function useLeadStages(
+  orgId: string | undefined,
+  options?: Omit<UseQueryOptions<{ stages: LeadStageItem[] }>, "queryKey" | "queryFn">
+) {
+  return useQuery({
+    queryKey: queryKeys.leadStages(orgId ?? ""),
+    queryFn: () =>
+      orgId
+        ? fetcherData<{ stages: LeadStageItem[] }>(`${API}/orgs/${orgId}/leads/stages`).then((r) =>
+            r?.stages ? r : { stages: [] }
+          )
+        : Promise.resolve({ stages: [] }),
+    enabled: !!orgId,
+    ...options,
+  });
+}
+
+/** Update lead stages (full replace). */
+export function useUpdateLeadStages(
   orgId: string,
-  options?: UseMutationOptions<{ updated: number }, Error, { ids: string[]; status: string }>
+  options?: UseMutationOptions<{ stages: LeadStageItem[] }, Error, LeadStageItem[]>
 ) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ ids, status }: { ids: string[]; status: string }) =>
+    mutationFn: (stages: LeadStageItem[]) =>
+      fetcherData<{ stages: LeadStageItem[] }>(`${API}/orgs/${orgId}/leads/stages`, {
+        method: "PATCH",
+        body: JSON.stringify({ stages }),
+      }),
+    onSuccess: (data) => {
+      qc.setQueryData(queryKeys.leadStages(orgId), data);
+    },
+    ...options,
+  });
+}
+
+/** Bulk update lead stage. */
+export function useBulkUpdateLeadsStage(
+  orgId: string,
+  options?: UseMutationOptions<{ updated: number }, Error, { ids: string[]; stage_id: string }>
+) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ ids, stage_id }: { ids: string[]; stage_id: string }) =>
       fetcherData<{ updated: number }>(`${API}/orgs/${orgId}/leads/bulk`, {
         method: "PATCH",
-        body: JSON.stringify({ ids, status }),
+        body: JSON.stringify({ ids, stage_id }),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["orgs", orgId, "leads"] });
@@ -377,7 +419,7 @@ export function useBulkDeleteLeads(
 
 export type LeadsStatsResult = {
   total: number;
-  byStatus: { status: string; count: number }[];
+  byStage: { stage_id: string; stage_name: string; count: number }[];
   bySource: { source: string; count: number }[];
   overTime: { date: string; count: number }[];
   newThisWeek: number;
@@ -395,7 +437,7 @@ export function useLeadsStats(
         ? fetcherData<LeadsStatsResult>(`${API}/orgs/${orgId}/leads/stats`)
         : Promise.resolve({
             total: 0,
-            byStatus: [],
+            byStage: [],
             bySource: [],
             overTime: [],
             newThisWeek: 0,

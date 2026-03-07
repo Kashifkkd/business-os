@@ -50,13 +50,19 @@ export async function POST(
 
   const { data: lead, error: leadError } = await supabase
     .from("leads")
-    .select("id, name, company")
+    .select("id, first_name, last_name, company_id")
     .eq("tenant_id", orgId)
     .eq("id", leadId)
     .single();
 
   if (leadError || !lead) {
     return NextResponse.json(apiError(API_ERROR_CODES.NOT_FOUND, "Lead not found"), { status: 404 });
+  }
+
+  let companyName: string | null = null;
+  if (lead.company_id) {
+    const { data: company } = await supabase.from("companies").select("name").eq("id", lead.company_id).single();
+    companyName = company?.name ?? null;
   }
 
   const { data: firstStage } = await supabase
@@ -71,7 +77,8 @@ export async function POST(
     return NextResponse.json(apiError(API_ERROR_CODES.BAD_REQUEST, "No pipeline stages configured"), { status: 400 });
   }
 
-  const dealName = typeof body.name === "string" && body.name.trim() ? body.name.trim() : `${lead.name}${lead.company ? ` - ${lead.company}` : ""}`;
+  const leadDisplayName = [lead.first_name, lead.last_name].filter(Boolean).join(" ").trim() || "Lead";
+  const dealName = typeof body.name === "string" && body.name.trim() ? body.name.trim() : `${leadDisplayName}${companyName ? ` - ${companyName}` : ""}`;
   const stageId = typeof body.stage_id === "string" && body.stage_id.trim() ? body.stage_id.trim() : firstStage.id;
 
   const { data: stageRow } = await supabase

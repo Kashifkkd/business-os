@@ -428,7 +428,7 @@ export interface Listing {
   property_address?: string | null;
 }
 
-/** MVP status values; stored as TEXT for future tenant-specific stages. */
+/** @deprecated Use stage_id / LeadStage; kept for transition. */
 export type LeadStatus =
   | "new"
   | "contacted"
@@ -437,19 +437,51 @@ export type LeadStatus =
   | "won"
   | "lost";
 
-export interface Lead {
+/** Lead stage per tenant (pipeline column). */
+export interface LeadStage {
   id: string;
   tenant_id: string;
   name: string;
+  color: string;
+  sort_order: number;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Company (tenant-scoped); referenced by leads. */
+export interface Company {
+  id: string;
+  tenant_id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Lead {
+  id: string;
+  tenant_id: string;
+  first_name: string;
+  last_name: string;
   email: string | null;
   phone: string | null;
-  company: string | null;
+  company_id: string | null;
+  /** Resolved from companies.name for display */
+  company_name?: string | null;
   source: string | null;
-  status: LeadStatus;
+  stage_id: string;
+  /** Resolved from lead_stages.name for display */
+  stage_name?: string | null;
   notes: string | null;
   metadata?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+  created_by?: string | null;
+  /** Resolved from profiles for display */
+  created_by_name?: string | null;
+  /** Assigned member user_ids; resolved to assignees (with name) for display */
+  assignee_ids?: string[];
+  assignees?: { user_id: string; name: string | null; email: string | null }[];
 }
 
 /** Lead source option per tenant (from lead_sources table). Seeded when org is created. */
@@ -474,6 +506,19 @@ export interface LeadActivity {
   metadata?: Record<string, unknown>;
   created_at: string;
   created_by: string | null;
+}
+
+/** Activity / audit log row (tenant-scoped). Used for Logs module. */
+export interface ActivityLog {
+  id: string;
+  tenant_id: string;
+  user_id: string | null;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  description: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
 }
 
 // ——— Activities module (calls, meetings) ———

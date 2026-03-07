@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { apiSuccess, apiError, API_ERROR_CODES } from "@/lib/api-response";
 import { getTenantById } from "@/lib/supabase/queries";
 
-/** PATCH: bulk update status. Body: { ids: string[], status: string } */
+/** PATCH: bulk update stage. Body: { ids: string[], stage_id: string } */
 /** DELETE: bulk delete. Body: { ids: string[] } */
 export async function PATCH(
   request: Request,
@@ -27,7 +27,7 @@ export async function PATCH(
     return NextResponse.json(apiError(API_ERROR_CODES.UNAUTHORIZED, "Unauthorized"), { status: 401 });
   }
 
-  let body: { ids?: string[]; status?: string };
+  let body: { ids?: string[]; stage_id?: string };
   try {
     body = await request.json();
   } catch {
@@ -35,23 +35,28 @@ export async function PATCH(
   }
 
   const ids = Array.isArray(body.ids) ? body.ids.filter((id) => typeof id === "string" && id.length > 0) : [];
-  const status = typeof body.status === "string" && body.status.trim() ? body.status.trim() : null;
+  const stage_id = typeof body.stage_id === "string" && body.stage_id.trim() ? body.stage_id.trim() : null;
 
   if (ids.length === 0) {
     return NextResponse.json(apiError(API_ERROR_CODES.VALIDATION_ERROR, "ids array is required"), { status: 400 });
   }
-  if (!status) {
-    return NextResponse.json(apiError(API_ERROR_CODES.VALIDATION_ERROR, "status is required"), { status: 400 });
+  if (!stage_id) {
+    return NextResponse.json(apiError(API_ERROR_CODES.VALIDATION_ERROR, "stage_id is required"), { status: 400 });
   }
 
-  const validStatuses = ["new", "contacted", "qualified", "proposal", "won", "lost"];
-  if (!validStatuses.includes(status)) {
-    return NextResponse.json(apiError(API_ERROR_CODES.VALIDATION_ERROR, "Invalid status"), { status: 400 });
+  const { data: stageRow } = await supabase
+    .from("lead_stages")
+    .select("id")
+    .eq("tenant_id", orgId)
+    .eq("id", stage_id)
+    .maybeSingle();
+  if (!stageRow) {
+    return NextResponse.json(apiError(API_ERROR_CODES.VALIDATION_ERROR, "Invalid stage_id for this org"), { status: 400 });
   }
 
   const { data, error } = await supabase
     .from("leads")
-    .update({ status })
+    .update({ stage_id })
     .eq("tenant_id", orgId)
     .in("id", ids)
     .select("id");

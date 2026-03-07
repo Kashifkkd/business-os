@@ -2,7 +2,8 @@
 
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useParams, useSearchParams, useRouter, usePathname } from "next/navigation";
-import { useLeads, useDeleteLead, useBulkUpdateLeadsStatus, useBulkDeleteLeads, useLeadSources } from "@/hooks/use-leads";
+import { useLeads, useDeleteLead, useBulkUpdateLeadsStage, useBulkDeleteLeads, useLeadSources, useLeadStages } from "@/hooks/use-leads";
+import { useOrganization } from "@/hooks/use-organization";
 import { sourceColorMap } from "@/lib/lead-sources";
 import type { GetLeadsResult } from "@/hooks/use-leads";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -41,16 +42,6 @@ const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 10;
 const SEARCH_DEBOUNCE_MS = 300;
 
-const LEAD_STATUS_OPTIONS = [
-  { value: "", label: "All statuses" },
-  { value: "new", label: "New" },
-  { value: "contacted", label: "Contacted" },
-  { value: "qualified", label: "Qualified" },
-  { value: "proposal", label: "Proposal" },
-  { value: "won", label: "Won" },
-  { value: "lost", label: "Lost" },
-] as const;
-
 const FALLBACK_SOURCE_OPTIONS = [
   { value: "", label: "All sources" },
   { value: "website", label: "Website" },
@@ -66,8 +57,8 @@ const SORT_OPTIONS = [
   { value: "name_desc", label: "Name Z–A" },
   { value: "company_asc", label: "Company A–Z" },
   { value: "company_desc", label: "Company Z–A" },
-  { value: "status_asc", label: "Status A–Z" },
-  { value: "status_desc", label: "Status Z–A" },
+  { value: "stage_id_asc", label: "Stage A–Z" },
+  { value: "stage_id_desc", label: "Stage Z–A" },
 ] as const;
 
 export default function LeadsPage() {
@@ -98,7 +89,7 @@ export default function LeadsPage() {
     (updates: {
       page?: number;
       search?: string;
-      status?: string;
+      stage?: string;
       source?: string;
       created_after?: string;
       created_before?: string;
@@ -108,7 +99,7 @@ export default function LeadsPage() {
       const next = new URLSearchParams(searchParams.toString());
       const p = updates.page ?? Math.max(1, Number(searchParams.get("page")) || 1);
       const s = updates.search ?? searchParams.get("search") ?? "";
-      const st = updates.status ?? searchParams.get("status") ?? "";
+      const st = updates.stage ?? searchParams.get("stage") ?? "";
       const src = updates.source ?? searchParams.get("source") ?? "";
       const ca = updates.created_after ?? searchParams.get("created_after") ?? "";
       const cb = updates.created_before ?? searchParams.get("created_before") ?? "";
@@ -118,8 +109,8 @@ export default function LeadsPage() {
       else next.delete("page");
       if (s) next.set("search", s);
       else next.delete("search");
-      if (st) next.set("status", st);
-      else next.delete("status");
+      if (st) next.set("stage", st);
+      else next.delete("stage");
       if (src) next.set("source", src);
       else next.delete("source");
       if (ca) next.set("created_after", ca);
@@ -150,7 +141,7 @@ export default function LeadsPage() {
   const page = Math.max(1, Number(searchParams.get("page")) || DEFAULT_PAGE);
   const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize")) || DEFAULT_PAGE_SIZE));
   const search = searchParams.get("search") ?? "";
-  const status = searchParams.get("status") ?? "";
+  const stage = searchParams.get("stage") ?? "";
   const source = searchParams.get("source") ?? "";
   const createdAfter = searchParams.get("created_after") ?? "";
   const createdBefore = searchParams.get("created_before") ?? "";
@@ -189,16 +180,19 @@ export default function LeadsPage() {
     [setParams]
   );
 
+  const { organization } = useOrganization(orgId);
   const { data: sourcesData } = useLeadSources(orgId);
+  const { data: stagesData } = useLeadStages(orgId);
   const sourceColors = sourceColorMap(sourcesData?.sources ?? []);
+  const stageOptions = stagesData?.stages ?? [];
 
-  const { data, isLoading, isRefetching } = useLeads(
+  const { data, isLoading, isRefetching, refetch } = useLeads(
     orgId,
     {
       page,
       pageSize,
       search: search.trim() || undefined,
-      status: status.trim() || undefined,
+      stage: stage.trim() || undefined,
       source: source.trim() || undefined,
       created_after: createdAfter.trim() || undefined,
       created_before: createdBefore.trim() || undefined,
@@ -209,7 +203,7 @@ export default function LeadsPage() {
   );
 
   const deleteLead = useDeleteLead(orgId);
-  const bulkUpdateStatus = useBulkUpdateLeadsStatus(orgId);
+  const bulkUpdateStage = useBulkUpdateLeadsStage(orgId);
   const bulkDelete = useBulkDeleteLeads(orgId);
 
   const handleDeleteRequest = useCallback((lead: Lead) => {
@@ -234,16 +228,16 @@ export default function LeadsPage() {
     });
   }, [selectedIds, bulkDelete]);
 
-  const handleBulkStatusChange = useCallback(
-    (newStatus: string) => {
+  const handleBulkStageChange = useCallback(
+    (stage_id: string) => {
       const ids = Array.from(selectedIds);
-      if (ids.length === 0 || !newStatus) return;
-      bulkUpdateStatus.mutate(
-        { ids, status: newStatus },
+      if (ids.length === 0 || !stage_id) return;
+      bulkUpdateStage.mutate(
+        { ids, stage_id },
         { onSuccess: () => setSelectedIds(new Set()) }
       );
     },
-    [selectedIds, bulkUpdateStatus]
+    [selectedIds, bulkUpdateStage]
   );
 
   const handleExport = useCallback(async () => {
@@ -252,7 +246,7 @@ export default function LeadsPage() {
     sp.set("page", "1");
     sp.set("pageSize", "500");
     if (search.trim()) sp.set("search", search);
-    if (status.trim()) sp.set("status", status);
+    if (stage.trim()) sp.set("stage", stage);
     if (source.trim()) sp.set("source", source);
     if (createdAfter.trim()) sp.set("created_after", createdAfter);
     if (createdBefore.trim()) sp.set("created_before", createdBefore);
@@ -262,16 +256,16 @@ export default function LeadsPage() {
     const json = await res.json();
     const payload = json?.data as GetLeadsResult | undefined;
     const items = payload?.items ?? [];
-    const headers = ["Name", "Email", "Phone", "Company", "Source", "Status", "Created"];
+    const headers = ["Name", "Email", "Phone", "Company", "Source", "Stage", "Created"];
     const escape = (v: string) => (v.includes(",") || v.includes('"') ? `"${v.replace(/"/g, '""')}"` : v);
     const rows = items.map((l) =>
       [
-        l.name,
+        [l.first_name, l.last_name].filter(Boolean).join(" ").trim() || "—",
         l.email ?? "",
         l.phone ?? "",
-        l.company ?? "",
+        l.company_name ?? "",
         l.source ?? "",
-        l.status,
+        l.stage_name ?? "",
         l.created_at ? new Date(l.created_at).toISOString() : "",
       ].map(escape).join(",")
     );
@@ -283,7 +277,7 @@ export default function LeadsPage() {
     a.download = `leads-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [orgId, search, status, source, createdAfter, createdBefore, sortBy, order]);
+  }, [orgId, search, stage, source, createdAfter, createdBefore, sortBy, order]);
 
   const tableData = data ?? {
     items: [],
@@ -296,7 +290,7 @@ export default function LeadsPage() {
     page: String(tableData.page),
     pageSize: String(tableData.pageSize),
     ...(search && { search }),
-    ...(status && { status }),
+    ...(stage && { stage }),
     ...(source && { source }),
     ...(createdAfter && { created_after: createdAfter }),
     ...(createdBefore && { created_before: createdBefore }),
@@ -309,10 +303,10 @@ export default function LeadsPage() {
   const isBulkSelected = selectedIds.size > 0
 
   return (
-    <div className="container mx-auto p-4">
+    <div className="flex flex-1 flex-col  h-full overflow-auto py-2">
       {/* Row 1: Title + subtitle (left) | Date range filter + Export (right) */}
       {!isBulkSelected && (
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4">
           <div>
             <h1 className="text-lg font-semibold">Leads</h1>
             <p className="text-muted-foreground text-sm">
@@ -344,15 +338,19 @@ export default function LeadsPage() {
         onSortChange={(sb, ord) => setParams({ sortBy: sb, order: ord, page: 1 })}
         selectedIds={selectedIds}
         onSelectionChange={setSelectedIds}
-        bulkStatusOptions={LEAD_STATUS_OPTIONS.filter((o) => o.value !== "")}
-        onBulkStatusChange={handleBulkStatusChange}
+        bulkStageOptions={stageOptions}
+        onBulkStageChange={handleBulkStageChange}
         onBulkDeleteClick={() => setBulkDeleteOpen(true)}
-        bulkUpdatePending={bulkUpdateStatus.isPending}
+        bulkUpdatePending={bulkUpdateStage.isPending}
         bulkDeletePending={bulkDelete.isPending}
         searchValue={searchInput}
         onSearchChange={setSearchInput}
         onFilterClick={() => setFilterDialogOpen(true)}
         sourceColors={sourceColors}
+        locale={organization?.locale}
+        timeFormat={organization?.time_format}
+        onRefresh={() => refetch()}
+        isRefetching={isRefetching}
       />
 
       <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
@@ -381,23 +379,24 @@ export default function LeadsPage() {
             <DialogTitle>Filters</DialogTitle>
           </DialogHeader>
           <FilterDialogContent
-            key={filterDialogOpen ? `open-${status}-${source}-${sortBy}-${order}` : "closed"}
-            status={status}
+            key={filterDialogOpen ? `open-${stage}-${source}-${sortBy}-${order}` : "closed"}
+            stage={stage}
             source={source}
             sortBy={sortBy}
             order={order}
+            stageOptions={stageOptions}
             sourceOptions={
               sourcesData?.sources?.length
                 ? [{ value: "", label: "All sources" }, ...sourcesData.sources.map((s) => ({ value: s.name, label: s.name.replace(/_/g, " ") }))]
                 : FALLBACK_SOURCE_OPTIONS
             }
             onApply={(st, src, sb, ord) => {
-              setParams({ status: st, source: src, sortBy: sb, order: ord, page: 1 });
+              setParams({ stage: st, source: src, sortBy: sb, order: ord, page: 1 });
               setFilterDialogOpen(false);
             }}
             onClear={() => {
               setParams({
-                status: "",
+                stage: "",
                 source: "",
                 sortBy: "created_at",
                 order: "desc",
@@ -414,7 +413,7 @@ export default function LeadsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete lead</AlertDialogTitle>
             <AlertDialogDescription>
-              Delete lead &quot;{leadToDelete?.name}&quot;? This cannot be undone.
+              Delete lead &quot;{[leadToDelete?.first_name, leadToDelete?.last_name].filter(Boolean).join(" ").trim() || "this"}&quot;? This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -433,44 +432,47 @@ export default function LeadsPage() {
 }
 
 function FilterDialogContent({
-  status,
+  stage,
   source,
   sortBy,
   order,
+  stageOptions,
   sourceOptions,
   onApply,
   onClear,
 }: {
-  status: string;
+  stage: string;
   source: string;
   sortBy: string;
   order: string;
+  stageOptions: { id: string; name: string }[];
   sourceOptions: { value: string; label: string }[];
-  onApply: (status: string, source: string, sortBy: string, order: "asc" | "desc") => void;
+  onApply: (stage: string, source: string, sortBy: string, order: "asc" | "desc") => void;
   onClear: () => void;
 }) {
-  const [localStatus, setLocalStatus] = useState(status);
+  const [localStage, setLocalStage] = useState(stage);
   const [localSource, setLocalSource] = useState(source);
   const [localSort, setLocalSort] = useState(`${sortBy}_${order}`);
 
   const handleApply = () => {
     const [sb, ord] = localSort.split("_") as [string, "asc" | "desc"];
-    onApply(localStatus, localSource, sb, ord);
+    onApply(localStage, localSource, sb, ord);
   };
 
   return (
     <>
       <div className="space-y-4 py-4">
         <div className="space-y-2">
-          <label className="text-muted-foreground text-sm font-medium">Status</label>
-          <Select value={localStatus || "all"} onValueChange={(v) => setLocalStatus(v === "all" ? "" : v)}>
+          <label className="text-muted-foreground text-sm font-medium">Stage</label>
+          <Select value={localStage || "all"} onValueChange={(v) => setLocalStage(v === "all" ? "" : v)}>
             <SelectTrigger>
-              <SelectValue placeholder="Status" />
+              <SelectValue placeholder="Stage" />
             </SelectTrigger>
             <SelectContent>
-              {LEAD_STATUS_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value || "all"} value={opt.value || "all"}>
-                  {opt.label}
+              <SelectItem value="all">All stages</SelectItem>
+              {stageOptions.map((opt) => (
+                <SelectItem key={opt.id} value={opt.id}>
+                  {opt.name}
                 </SelectItem>
               ))}
             </SelectContent>

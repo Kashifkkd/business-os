@@ -14,8 +14,14 @@ const PIPELINE_STAGES: { status: LeadStatus; label: string }[] = [
   { status: "lost", label: "Lost" },
 ];
 
+type StageItem = { id: string; name: string; color?: string };
+
 type LeadStatusPipelineProps = {
-  currentStatus: LeadStatus;
+  /** When using stage-based pipeline (lead.stage_id). */
+  stages?: StageItem[];
+  currentStageId?: string;
+  /** @deprecated Use stages + currentStageId. Kept for pipeline page until it uses stages API. */
+  currentStatus?: LeadStatus;
   onAdvance?: () => void;
   onDisqualify?: () => void;
   className?: string;
@@ -23,7 +29,13 @@ type LeadStatusPipelineProps = {
   compact?: boolean;
 };
 
+function getStageColorStyle() {
+  return { bgMuted: "bg-muted", text: "text-foreground", border: "border-l-primary" };
+}
+
 export function LeadStatusPipeline({
+  stages: stagesProp,
+  currentStageId,
   currentStatus,
   onAdvance,
   onDisqualify,
@@ -31,10 +43,22 @@ export function LeadStatusPipeline({
   orientation = "horizontal",
   compact = false,
 }: LeadStatusPipelineProps) {
-  const currentIndex = PIPELINE_STAGES.findIndex((s) => s.status === currentStatus);
-  const canAdvance = currentIndex >= 0 && currentIndex < PIPELINE_STAGES.length - 1;
-  const isLost = currentStatus === "lost";
-  const isWon = currentStatus === "won";
+  const useStages = Array.isArray(stagesProp) && stagesProp.length > 0 && currentStageId != null;
+  const stages = useStages ? stagesProp! : PIPELINE_STAGES;
+  const currentIndex = useStages
+    ? stages.findIndex((s) => (s as StageItem).id === currentStageId)
+    : PIPELINE_STAGES.findIndex((s) => s.status === currentStatus);
+  const canAdvance = currentIndex >= 0 && currentIndex < stages.length - 1;
+  const isLost = useStages
+    ? (stages[currentIndex] as StageItem)?.name?.toLowerCase() === "lost"
+    : currentStatus === "lost";
+  const isWon = useStages
+    ? (stages[currentIndex] as StageItem)?.name?.toLowerCase() === "won"
+    : currentStatus === "won";
+  const getStageLabel = (s: StageItem | (typeof PIPELINE_STAGES)[number]) =>
+    "name" in s ? s.name : s.label;
+  const getStageKey = (s: StageItem | (typeof PIPELINE_STAGES)[number]) =>
+    "id" in s ? s.id : (s as (typeof PIPELINE_STAGES)[number]).status;
 
   if (orientation === "vertical") {
     return (
@@ -43,13 +67,13 @@ export function LeadStatusPipeline({
           Stage
         </h2>
         <div className="flex flex-col overflow-hidden rounded-lg border border-border bg-muted/40 dark:bg-muted/20">
-          {PIPELINE_STAGES.map((stage, i) => {
-            const isActive = stage.status === currentStatus;
+          {stages.map((stage, i) => {
+            const isActive = useStages ? (stage as StageItem).id === currentStageId : (stage as (typeof PIPELINE_STAGES)[number]).status === currentStatus;
             const isPast = currentIndex > i;
-            const colors = getStageColors(stage.status);
+            const colors = useStages ? getStageColorStyle() : getStageColors((stage as (typeof PIPELINE_STAGES)[number]).status);
             return (
               <div
-                key={stage.status}
+                key={getStageKey(stage as StageItem)}
                 className={cn(
                   "flex items-center justify-between px-3 py-2 text-xs font-medium transition-colors",
                   isActive && colors.bgMuted,
@@ -62,7 +86,7 @@ export function LeadStatusPipeline({
                   !isActive && isPast && "text-foreground/70"
                 )}
               >
-                <span className="truncate">{stage.label}</span>
+                <span className="truncate">{getStageLabel(stage as StageItem)}</span>
                 {isActive && canAdvance && onAdvance && (
                   <button
                     type="button"
@@ -101,13 +125,13 @@ export function LeadStatusPipeline({
           compact && "rounded-md"
         )}
       >
-        {PIPELINE_STAGES.map((stage, i) => {
-          const isActive = stage.status === currentStatus;
+        {stages.map((stage, i) => {
+          const isActive = useStages ? (stage as StageItem).id === currentStageId : (stage as (typeof PIPELINE_STAGES)[number]).status === currentStatus;
           const isPast = currentIndex > i;
-          const colors = getStageColors(stage.status);
+          const colors = useStages ? getStageColorStyle() : getStageColors((stage as (typeof PIPELINE_STAGES)[number]).status);
           return (
             <div
-              key={stage.status}
+              key={getStageKey(stage as StageItem)}
               className={cn(
                 "relative flex min-w-0 flex-1 items-center justify-center font-medium transition-colors",
                 compact
@@ -117,15 +141,15 @@ export function LeadStatusPipeline({
                 isActive && colors.text,
                 isActive && "shadow-sm",
                 i === 0 && "rounded-l-full",
-                i === PIPELINE_STAGES.length - 1 && "rounded-r-full",
+                i === stages.length - 1 && "rounded-r-full",
                 compact && i === 0 && "rounded-l-md",
-                compact && i === PIPELINE_STAGES.length - 1 && "rounded-r-md",
+                compact && i === stages.length - 1 && "rounded-r-md",
                 !isActive && "text-muted-foreground",
                 !isActive && isPast && "text-foreground/70",
                 i > 0 && !isActive && "border-l border-border/80"
               )}
             >
-              <span className="truncate">{stage.label}</span>
+              <span className="truncate">{getStageLabel(stage as StageItem)}</span>
             </div>
           );
         })}

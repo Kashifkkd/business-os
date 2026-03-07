@@ -4,13 +4,17 @@ import Link from "next/link";
 import { LeadStatusPipeline } from "@/components/lead-status-pipeline";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { getLeadDisplayName } from "@/lib/display-name";
 import { getInitials } from "@/lib/get-initials";
-import type { Lead, LeadStatus } from "@/lib/supabase/types";
-import { ArrowLeft, Pencil, Trash2, DollarSign, RefreshCw } from "lucide-react";
+import type { Lead } from "@/lib/supabase/types";
+import { ArrowLeft, Pencil, DollarSign, RefreshCw, Trash2 } from "lucide-react";
+
+type StageOption = { id: string; name: string; color?: string };
 
 type LeadDetailHeaderProps = {
   lead: Lead;
   orgId: string;
+  stages?: StageOption[];
   onAdvanceStatus: () => void;
   onMarkLost: () => void;
   onDeleteClick: () => void;
@@ -22,6 +26,7 @@ type LeadDetailHeaderProps = {
 export function LeadDetailHeader({
   lead,
   orgId,
+  stages = [],
   onAdvanceStatus,
   onMarkLost,
   onDeleteClick,
@@ -44,10 +49,10 @@ export function LeadDetailHeader({
           </Link>
           <Avatar className="size-7 shrink-0 rounded-full border border-border">
             <AvatarFallback className="text-xs font-medium">
-              {getInitials(lead.name)}
+              {getInitials([lead.first_name, lead.last_name].filter(Boolean).join(" "))}
             </AvatarFallback>
           </Avatar>
-          <span className="truncate text-base font-semibold text-foreground">{lead.name}</span>
+          <span className="truncate text-base font-semibold text-foreground">{getLeadDisplayName(lead)}</span>
         </nav>
         <div className="flex flex-wrap items-center gap-1.5">
           {deleteError && (
@@ -87,7 +92,8 @@ export function LeadDetailHeader({
         </div>
       </div>
       <LeadStatusPipeline
-        currentStatus={lead.status as LeadStatus}
+        stages={stages.length > 0 ? stages : undefined}
+        currentStageId={stages.length > 0 ? lead.stage_id : undefined}
         onAdvance={onAdvanceStatus}
         onDisqualify={onMarkLost}
         orientation="horizontal"

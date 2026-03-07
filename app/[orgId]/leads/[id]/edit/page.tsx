@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useLead, useUpdateLead } from "@/hooks/use-leads";
+import { useLead, useUpdateLead, useLeadSources, useLeadStages } from "@/hooks/use-leads";
 import { Button } from "@/components/ui/button";
 import {
   LeadForm,
@@ -21,19 +21,31 @@ export default function EditLeadPage() {
 
   const { data: lead, isLoading } = useLead(orgId, leadId);
   const updateLead = useUpdateLead(orgId, leadId);
+  const { data: sourcesData } = useLeadSources(orgId);
+  const { data: stagesData } = useLeadStages(orgId);
+  const sourceOptions = [
+    { value: "", label: "Select source" },
+    ...(sourcesData?.sources ?? []).map((s) => ({
+      value: s.name,
+      label: s.name.replace(/_/g, " "),
+    })),
+  ];
+  const stageOptions = stagesData?.stages ?? [];
 
   const handleSubmit = (values: LeadFormValues) => {
     const payload = leadFormValuesToPayload(values);
     updateLead.mutate(
       {
-        name: payload.name,
+        first_name: payload.first_name,
+        last_name: payload.last_name,
         email: payload.email,
         phone: payload.phone,
-        company: payload.company,
+        company_id: payload.company_id,
         source: payload.source,
-        status: payload.status,
+        stage_id: payload.stage_id,
         notes: payload.notes,
         metadata: payload.metadata,
+        assignee_ids: payload.assignee_ids,
       },
       {
         onSuccess: () => {
@@ -82,11 +94,14 @@ export default function EditLeadPage() {
       </div>
 
       <LeadForm
+        orgId={orgId}
         initialValues={leadToFormValues(lead)}
         mode="edit"
         onSubmit={handleSubmit}
         onCancel={() => router.push(`/${orgId}/leads/${leadId}`)}
         isPending={updateLead.isPending}
+        sourceOptions={sourceOptions}
+        stageOptions={stageOptions}
       />
     </div>
   );

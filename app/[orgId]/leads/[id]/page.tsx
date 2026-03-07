@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   useLead,
@@ -8,20 +8,18 @@ import {
   useUpdateLead,
   useLeadActivities,
   useLeadSources,
+  useLeadStages,
 } from "@/hooks/use-leads";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/hooks/use-api";
 import { sourceColorMap } from "@/lib/lead-sources";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import type { LeadStatus } from "@/lib/supabase/types";
 import { LeadDetailHeader } from "./_components/lead-detail-header";
 import { LeadDetailSidebar } from "./_components/lead-detail-sidebar";
 import { LeadDetailTabs } from "./_components/lead-detail-tabs";
 import { LeadDeleteDialog } from "./_components/lead-delete-dialog";
 import { LeadDetailLoading } from "./_components/lead-detail-loading";
 import { LeadDetailNotFound } from "./_components/lead-detail-not-found";
-
-const PIPELINE_ORDER: LeadStatus[] = ["new", "contacted", "qualified", "proposal", "won", "lost"];
 
 export default function LeadDetailPage() {
   const params = useParams();
@@ -32,7 +30,12 @@ export default function LeadDetailPage() {
   const queryClient = useQueryClient();
   const { data: lead, isLoading } = useLead(orgId, leadId);
   const { data: sourcesData } = useLeadSources(orgId);
+  const { data: stagesData } = useLeadStages(orgId);
   const sourceColors = sourceColorMap(sourcesData?.sources ?? []);
+  const stageOptions = useMemo(
+    () => (stagesData?.stages ?? []).map((s) => ({ id: s.id, name: s.name, color: s.color })),
+    [stagesData?.stages]
+  );
   const deleteLead = useDeleteLead(orgId);
   const updateLead = useUpdateLead(orgId, leadId);
   const { data: activities = [], isLoading: activitiesLoading } = useLeadActivities(orgId, leadId);
@@ -50,16 +53,17 @@ export default function LeadDetailPage() {
   };
 
   const handleAdvanceStatus = () => {
-    if (!lead) return;
-    const idx = PIPELINE_ORDER.indexOf(lead.status);
-    if (idx >= 0 && idx < PIPELINE_ORDER.length - 1) {
-      updateLead.mutate({ status: PIPELINE_ORDER[idx + 1] });
+    if (!lead || stageOptions.length === 0) return;
+    const idx = stageOptions.findIndex((s) => s.id === lead.stage_id);
+    if (idx >= 0 && idx < stageOptions.length - 1) {
+      updateLead.mutate({ stage_id: stageOptions[idx + 1].id });
     }
   };
 
   const handleMarkLost = () => {
-    if (!lead) return;
-    updateLead.mutate({ status: "lost" });
+    if (!lead || stageOptions.length === 0) return;
+    const lostStage = stageOptions.find((s) => s.name.toLowerCase() === "lost");
+    if (lostStage) updateLead.mutate({ stage_id: lostStage.id });
   };
 
   const copyEmail = () => {
@@ -95,6 +99,7 @@ export default function LeadDetailPage() {
         <LeadDetailHeader
           lead={lead}
           orgId={orgId}
+          stages={stageOptions}
           onAdvanceStatus={handleAdvanceStatus}
           onMarkLost={handleMarkLost}
           onDeleteClick={handleDeleteClick}
@@ -125,7 +130,7 @@ export default function LeadDetailPage() {
         <LeadDeleteDialog
           open={deleteDialogOpen}
           onOpenChange={setDeleteDialogOpen}
-          leadName={lead.name}
+          leadName={[lead.first_name, lead.last_name].filter(Boolean).join(" ").trim() || "Lead"}
           onConfirm={handleDeleteConfirm}
         />
       </div>

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { apiSuccess, apiError, API_ERROR_CODES } from "@/lib/api-response";
 import { getTenantById } from "@/lib/supabase/queries";
+import { createActivityLog, ACTIONS, ENTITY_TYPES } from "@/lib/activity-log";
 import type { Employee } from "@/lib/supabase/types";
 
 const EMPLOYEE_SELECT =
@@ -204,5 +205,16 @@ export async function POST(
     return NextResponse.json(apiError(API_ERROR_CODES.BAD_REQUEST, error.message), { status: 400 });
   }
 
-  return NextResponse.json(apiSuccess(row as Employee), { status: 201 });
+  const employee = row as Employee & { employee_number?: string | null };
+  await createActivityLog(supabase, {
+    tenantId: orgId,
+    userId: user.id,
+    action: ACTIONS.CREATE,
+    resourceType: ENTITY_TYPES.EMPLOYEE,
+    resourceId: employee.id,
+    description: `Created employee ${employee.employee_number ? `(${employee.employee_number})` : ""}`.trim() || "Created employee",
+    metadata: {},
+  });
+
+  return NextResponse.json(apiSuccess(employee), { status: 201 });
 }

@@ -13,6 +13,7 @@ import {
   Area,
   LineChart,
   Line,
+  Cell,
 } from "recharts";
 import { useCafeInsights } from "@/hooks/use-cafe";
 import { formatPrice } from "@/lib/format";
@@ -132,7 +133,11 @@ export default function MenuInsightsPage() {
                       contentStyle={{ fontSize: 12 }}
                       formatter={(value: number) => [value, "Items"]}
                     />
-                    <Bar dataKey="count" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                      {itemsByCategoryData.map((_, i) => (
+                        <Cell key={i} fill={`var(--chart-${(i % 5) + 1})`} />
+                      ))}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -170,10 +175,10 @@ export default function MenuInsightsPage() {
                   <Line
                     type="monotone"
                     dataKey="count"
-                    stroke="hsl(var(--primary))"
+                    stroke="var(--chart-2)"
                     strokeWidth={2}
-                    dot={{ r: 2 }}
-                    activeDot={{ r: 4 }}
+                    dot={{ r: 2, fill: "var(--chart-2)" }}
+                    activeDot={{ r: 4, fill: "var(--chart-2)" }}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -216,9 +221,9 @@ export default function MenuInsightsPage() {
                 <Area
                   type="monotone"
                   dataKey="revenue"
-                  stroke="hsl(var(--chart-2))"
-                  fill="hsl(var(--chart-2))"
-                  fillOpacity={0.2}
+                  stroke="var(--chart-3)"
+                  fill="var(--chart-3)"
+                  fillOpacity={0.25}
                   strokeWidth={2}
                 />
               </AreaChart>

@@ -21,6 +21,7 @@ import {
   DollarSign,
   Landmark,
   CalendarDays,
+  ScrollText,
 } from "lucide-react";
 
 export function AppSidebar() {
@@ -78,6 +79,7 @@ export function AppSidebar() {
   const isActivitiesActive = pathname.startsWith(`${base}/activities`);
   const isInventoryActive = pathname.startsWith(`${base}/inventory`);
   const isFinanceActive = pathname.startsWith(`${base}/finance`);
+  const isLogsActive = pathname.startsWith(`${base}/logs`);
   const isSettingsActive = pathname.startsWith(`${base}/settings`);
 
   const navButtonClass = (active: boolean) =>
@@ -150,6 +152,18 @@ export function AppSidebar() {
                 <CalendarDays className="size-4 shrink-0" />
                 <span className="truncate text-sm">Activities</span>
                 {isActivitiesActive && (
+                  <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-r bg-sidebar-primary" />
+                )}
+              </Button>
+            </Link>
+            <Link href={`${base}/logs`}>
+              <Button
+                variant="ghost"
+                className={navButtonClass(isLogsActive)}
+              >
+                <ScrollText className="size-4 shrink-0" />
+                <span className="truncate text-sm">Logs</span>
+                {isLogsActive && (
                   <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-r bg-sidebar-primary" />
                 )}
               </Button>
@@ -232,6 +246,20 @@ export function AppSidebar() {
             )}
           >
             <CalendarDays className="size-4" />
+          </Button>
+        </Link>
+        <Link href={`${base}/logs`} title="Logs">
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "relative h-10 w-10 shrink-0 cursor-pointer shadow-none transition-colors",
+              isLogsActive
+                ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                : "bg-transparent hover:bg-sidebar-accent/50 text-sidebar-foreground hover:text-sidebar-accent-foreground"
+            )}
+          >
+            <ScrollText className="size-4" />
           </Button>
         </Link>
         <Link href={`${base}/settings`} title="Settings">

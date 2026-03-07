@@ -29,6 +29,15 @@ export async function fetcherData<T>(url: string, init?: RequestInit): Promise<T
   return getDataOrThrow(response);
 }
 
+type LogsQueryKeyParams = {
+  from?: string;
+  to?: string;
+  action?: string;
+  entity_type?: string;
+  user_id?: string;
+  limit?: number;
+};
+
 /** Shared query keys for all domain hooks (org, menu, cafe). */
 export const queryKeys = {
   profile: () => ["me", "profile"] as const,
@@ -58,7 +67,7 @@ export const queryKeys = {
       page: number;
       pageSize: number;
       search?: string;
-      status?: string;
+      stage?: string;
       source?: string;
       created_after?: string;
       created_before?: string;
@@ -73,7 +82,7 @@ export const queryKeys = {
       params.page,
       params.pageSize,
       params.search ?? "",
-      params.status ?? "",
+      params.stage ?? "",
       params.source ?? "",
       params.created_after ?? "",
       params.created_before ?? "",
@@ -81,9 +90,23 @@ export const queryKeys = {
       params.order ?? "desc",
     ] as const,
   lead: (orgId: string, leadId: string) => ["orgs", orgId, "leads", leadId] as const,
+  companies: (orgId: string) => ["orgs", orgId, "companies"] as const,
   leadActivities: (orgId: string, leadId: string) => ["orgs", orgId, "leads", leadId, "activities"] as const,
   leadSources: (orgId: string) => ["orgs", orgId, "leads", "sources"] as const,
+  leadStages: (orgId: string) => ["orgs", orgId, "leads", "stages"] as const,
   leadStats: (orgId: string) => ["orgs", orgId, "leads", "stats"] as const,
+  logs: (orgId: string, params: LogsQueryKeyParams) =>
+    [
+      "orgs",
+      orgId,
+      "logs",
+      params.from ?? "",
+      params.to ?? "",
+      params.action ?? "",
+      params.entity_type ?? "",
+      params.user_id ?? "",
+      params.limit ?? 20,
+    ] as const,
   listings: (orgId: string, params: { page: number; pageSize: number; status?: string }) =>
     ["orgs", orgId, "listings", params.page, params.pageSize, params.status ?? ""] as const,
   listing: (orgId: string, listingId: string) => ["orgs", orgId, "listings", listingId] as const,

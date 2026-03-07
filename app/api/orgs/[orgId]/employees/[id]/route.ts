@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { apiSuccess, apiError, API_ERROR_CODES } from "@/lib/api-response";
 import { getTenantById } from "@/lib/supabase/queries";
+import { createActivityLog, ACTIONS, ENTITY_TYPES } from "@/lib/activity-log";
 import type { Employee } from "@/lib/supabase/types";
 
 const EMPLOYEE_SELECT =
@@ -187,6 +188,17 @@ export async function PATCH(
     return NextResponse.json(apiError(API_ERROR_CODES.BAD_REQUEST, error.message), { status: 400 });
   }
 
+  const emp = updated as Employee & { employee_number?: string | null };
+  await createActivityLog(supabase, {
+    tenantId: orgId,
+    userId: user.id,
+    action: ACTIONS.UPDATE,
+    resourceType: ENTITY_TYPES.EMPLOYEE,
+    resourceId: id,
+    description: `Updated employee ${emp.employee_number ? `(${emp.employee_number})` : ""}`.trim() || "Updated employee",
+    metadata: {},
+  });
+
   return NextResponse.json(apiSuccess(updated as Employee));
 }
 
@@ -214,7 +226,7 @@ export async function DELETE(
 
   const { data: existing, error: fetchError } = await supabase
     .from("employees")
-    .select("id")
+    .select("id, employee_number")
     .eq("tenant_id", orgId)
     .eq("id", id)
     .single();
@@ -228,6 +240,17 @@ export async function DELETE(
   if (error) {
     return NextResponse.json(apiError(API_ERROR_CODES.BAD_REQUEST, error.message), { status: 400 });
   }
+
+  const empNum = (existing as { employee_number?: string | null }).employee_number;
+  await createActivityLog(supabase, {
+    tenantId: orgId,
+    userId: user.id,
+    action: ACTIONS.DELETE,
+    resourceType: ENTITY_TYPES.EMPLOYEE,
+    resourceId: id,
+    description: `Deleted employee ${empNum ? `(${empNum})` : ""}`.trim() || "Deleted employee",
+    metadata: {},
+  });
 
   return NextResponse.json(apiSuccess({ deleted: true }));
 }

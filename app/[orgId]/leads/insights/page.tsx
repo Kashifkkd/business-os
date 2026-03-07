@@ -11,6 +11,7 @@ import {
   ResponsiveContainer,
   LineChart,
   Line,
+  Cell,
 } from "recharts";
 import { useLeadsStats } from "@/hooks/use-leads";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,11 +51,11 @@ export default function LeadsInsightsPage() {
     );
   }
 
-  const wonCount = stats.byStatus.find((s) => s.status === "won")?.count ?? 0;
+  const wonCount = stats.byStage.find((s) => s.stage_name?.toLowerCase() === "won")?.count ?? 0;
   const conversionRate = stats.total > 0 ? Math.round((wonCount / stats.total) * 100) : 0;
 
-  const byStatusData = stats.byStatus.map((s) => ({
-    name: s.status.charAt(0).toUpperCase() + s.status.slice(1),
+  const byStageData = stats.byStage.map((s) => ({
+    name: s.stage_name || s.stage_id,
     count: s.count,
   }));
 
@@ -71,7 +72,6 @@ export default function LeadsInsightsPage() {
   return (
     <div className="container mx-auto max-w-6xl p-4">
       <div className="mb-4 flex items-center gap-2">
-        <BarChart3 className="size-5" />
         <div>
           <h1 className="text-lg font-semibold">Leads Insights</h1>
           <p className="text-muted-foreground text-sm">
@@ -110,11 +110,11 @@ export default function LeadsInsightsPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Leads by status</CardTitle>
+            <CardTitle>Leads by stage</CardTitle>
             <CardDescription>Count per pipeline stage.</CardDescription>
           </CardHeader>
           <CardContent>
-            {byStatusData.length === 0 ? (
+            {byStageData.length === 0 ? (
               <p className="flex h-[320px] items-center justify-center text-muted-foreground text-sm">
                 No leads yet.
               </p>
@@ -122,14 +122,18 @@ export default function LeadsInsightsPage() {
               <div className="h-[320px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={byStatusData}
+                    data={byStageData}
                     margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis dataKey="name" tick={{ fontSize: 11 }} className="text-muted-foreground" />
                     <YAxis tick={{ fontSize: 11 }} className="text-muted-foreground" />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={(value: number | undefined) => [value ?? 0, "Leads"]} />
-                    <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                      {byStageData.map((_, i) => (
+                        <Cell key={i} fill={`var(--chart-${(i % 5) + 1})`} />
+                      ))}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -159,7 +163,11 @@ export default function LeadsInsightsPage() {
                     <XAxis type="number" tick={{ fontSize: 11 }} className="text-muted-foreground" />
                     <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 11 }} className="text-muted-foreground" />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={(value: number | undefined) => [value ?? 0, "Leads"]} />
-                    <Bar dataKey="count" fill="hsl(var(--chart-2))" radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                      {bySourceData.map((_, i) => (
+                        <Cell key={i} fill={`var(--chart-${(i % 5) + 1})`} />
+                      ))}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -190,10 +198,10 @@ export default function LeadsInsightsPage() {
                 <Line
                   type="monotone"
                   dataKey="count"
-                  stroke="hsl(var(--primary))"
+                  stroke="var(--chart-1)"
                   strokeWidth={2}
-                  dot={{ r: 2 }}
-                  activeDot={{ r: 4 }}
+                  dot={{ r: 2, fill: "var(--chart-1)" }}
+                  activeDot={{ r: 4, fill: "var(--chart-1)" }}
                 />
               </LineChart>
             </ResponsiveContainer>

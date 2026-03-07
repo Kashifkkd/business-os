@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getTenantById, getMenuItemById } from "@/lib/supabase/queries";
+import { createActivityLog, ACTIONS, ENTITY_TYPES } from "@/lib/activity-log";
 import type { MenuItem } from "@/lib/supabase/types";
 
 export async function GET(
@@ -105,5 +106,14 @@ export async function PATCH(
   }
 
   const item = await getMenuItemById(orgId, id);
+  await createActivityLog(supabase, {
+    tenantId: orgId,
+    userId: user.id,
+    action: ACTIONS.UPDATE,
+    resourceType: ENTITY_TYPES.MENU_ITEM,
+    resourceId: id,
+    description: `Updated menu item "${(item as MenuItem)?.name ?? "Menu item"}"`,
+    metadata: {},
+  });
   return NextResponse.json(item as MenuItem);
 }

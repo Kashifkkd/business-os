@@ -8,6 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { SourceChip } from "@/components/source-chip";
 import { Separator } from "@/components/ui/separator";
+import { DisplayName } from "@/components/display-name";
 import type { Lead } from "@/lib/supabase/types";
 import { Mail, Phone, MessageCircle, ImageIcon, MoreHorizontal, Copy } from "lucide-react";
 
@@ -112,6 +113,10 @@ export function LeadDetailSidebar({
         </h2>
         <dl className="space-y-3.5 text-sm">
           <div>
+            <dt className="text-muted-foreground">Company</dt>
+            <dd className="mt-0.5 font-medium">{lead.company_name ?? "—"}</dd>
+          </div>
+          <div>
             <dt className="text-muted-foreground">Created</dt>
             <dd className="mt-0.5 font-medium">
               {new Date(lead.created_at).toLocaleDateString(undefined, { dateStyle: "long" })}
@@ -125,7 +130,19 @@ export function LeadDetailSidebar({
           </div>
           <div>
             <dt className="text-muted-foreground">Assigned to</dt>
-            <dd className="mt-0.5 text-muted-foreground/80">Coming soon</dd>
+            <dd className="mt-0.5 flex flex-col gap-1">
+              {lead.assignees?.length ? (
+                lead.assignees.map((a) => (
+                  <DisplayName
+                    key={a.user_id}
+                    name={a.name ?? a.email ?? undefined}
+                    size="sm"
+                  />
+                ))
+              ) : (
+                <span className="text-muted-foreground/80">—</span>
+              )}
+            </dd>
           </div>
         </dl>
       </div>

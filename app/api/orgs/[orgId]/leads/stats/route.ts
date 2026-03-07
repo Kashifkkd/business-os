@@ -5,13 +5,13 @@ import { getTenantById } from "@/lib/supabase/queries";
 
 export interface LeadsStatsResult {
   total: number;
-  byStatus: { status: string; count: number }[];
+  byStage: { stage_id: string; stage_name: string; count: number }[];
   bySource: { source: string; count: number }[];
   overTime: { date: string; count: number }[];
   newThisWeek: number;
 }
 
-/** GET leads stats for insights: total, byStatus, bySource, overTime (last 30 days), newThisWeek */
+/** GET leads stats for insights: total, byStage, bySource, overTime (last 30 days), newThisWeek */
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ orgId: string }> }
@@ -36,17 +36,27 @@ export async function GET(
 
   const { data: all, error: listError } = await supabase
     .from("leads")
-    .select("id, status, source, created_at")
+    .select("id, stage_id, source, created_at")
     .eq("tenant_id", orgId);
 
   if (listError) {
     return NextResponse.json(apiError(API_ERROR_CODES.BAD_REQUEST, listError.message), { status: 400 });
   }
 
-  const items = (all ?? []) as { id: string; status: string; source: string | null; created_at: string }[];
+  const items = (all ?? []) as { id: string; stage_id: string; source: string | null; created_at: string }[];
   const total = items.length;
 
-  const statusCounts: Record<string, number> = {};
+  const stageIds = [...new Set(items.map((r) => r.stage_id).filter(Boolean))];
+  const { data: stagesRows } =
+    stageIds.length > 0
+      ? await supabase.from("lead_stages").select("id, name").in("id", stageIds)
+      : { data: [] };
+  const stageNameById: Record<string, string> = {};
+  (stagesRows ?? []).forEach((s: { id: string; name: string }) => {
+    stageNameById[s.id] = s.name;
+  });
+
+  const stageCounts: Record<string, number> = {};
   const sourceCounts: Record<string, number> = {};
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
@@ -60,7 +70,7 @@ export async function GET(
   }
 
   for (const row of items) {
-    statusCounts[row.status] = (statusCounts[row.status] ?? 0) + 1;
+    stageCounts[row.stage_id] = (stageCounts[row.stage_id] ?? 0) + 1;
     const src = row.source?.trim() || "Unknown";
     sourceCounts[src] = (sourceCounts[src] ?? 0) + 1;
     if (new Date(row.created_at) >= weekAgo) newThisWeek++;
@@ -68,7 +78,11 @@ export async function GET(
     if (day in dayCounts) dayCounts[day]++;
   }
 
-  const byStatus = Object.entries(statusCounts).map(([status, count]) => ({ status, count }));
+  const byStage = Object.entries(stageCounts).map(([stage_id, count]) => ({
+    stage_id,
+    stage_name: stageNameById[stage_id] ?? "",
+    count,
+  }));
   const bySource = Object.entries(sourceCounts).map(([source, count]) => ({ source, count }));
   const overTime = Object.entries(dayCounts)
     .sort(([a], [b]) => a.localeCompare(b))
@@ -76,7 +90,7 @@ export async function GET(
 
   const result: LeadsStatsResult = {
     total,
-    byStatus,
+    byStage,
     bySource,
     overTime,
     newThisWeek,

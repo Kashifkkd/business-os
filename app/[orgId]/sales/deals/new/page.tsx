@@ -36,7 +36,7 @@ export default function NewDealPage() {
     if (leadIdFromUrl && lead) {
       return {
         ...emptyDealFormValues,
-        name: lead.company ? `${lead.name} - ${lead.company}` : lead.name,
+        name: lead.company_name ? `${[lead.first_name, lead.last_name].filter(Boolean).join(" ").trim() || "Lead"} - ${lead.company_name}` : [lead.first_name, lead.last_name].filter(Boolean).join(" ").trim() || "Lead",
         lead_id: lead.id,
         stage_id: defaultStageId,
       };

@@ -28,6 +28,7 @@ import {
   ReceiptText,
   Phone,
   Video,
+  ScrollText,
 } from "lucide-react";
 
 export interface SubNavItem {
@@ -102,6 +103,19 @@ export function getActivitiesModuleNav(basePath: string): ModuleNavConfig {
   };
 }
 
+/** Logs module sub-nav (path-based: single Activity log page). */
+export function getLogsModuleNav(basePath: string): ModuleNavConfig {
+  const base = basePath;
+  const logs = `${base}/logs`;
+  return {
+    title: "LOGS",
+    pathPrefixes: [logs],
+    items: [
+      { href: logs, label: "Activity log", icon: ScrollText },
+    ],
+  };
+}
+
 /** Tasks module sub-nav (path-based: shown when user is under /tasks). */
 export function getTasksModuleNav(basePath: string): ModuleNavConfig {
   const base = basePath;
@@ -158,6 +172,10 @@ export function getModuleNavConfigForPath(
   const tasksPrefix = `${basePath}/tasks`;
   if (pathname === tasksPrefix || pathname.startsWith(tasksPrefix + "/")) {
     return getTasksModuleNav(basePath);
+  }
+  const logsPrefix = `${basePath}/logs`;
+  if (pathname === logsPrefix || pathname.startsWith(logsPrefix + "/")) {
+    return getLogsModuleNav(basePath);
   }
   const financePrefix = `${basePath}/finance`;
   if (pathname === financePrefix || pathname.startsWith(financePrefix + "/")) {

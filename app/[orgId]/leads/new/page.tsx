@@ -1,8 +1,9 @@
 "use client";
 
+import { useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useCreateLead } from "@/hooks/use-leads";
+import { useCreateLead, useLeadSources, useLeadStages } from "@/hooks/use-leads";
 import { Button } from "@/components/ui/button";
 import type { LeadFormValues } from "../lead-form";
 import { LeadForm, emptyLeadFormValues, leadFormValuesToPayload } from "../lead-form";
@@ -14,19 +15,39 @@ export default function NewLeadPage() {
   const orgId = params?.orgId as string;
 
   const createLead = useCreateLead(orgId);
+  const { data: sourcesData } = useLeadSources(orgId);
+  const { data: stagesData } = useLeadStages(orgId);
+  const sourceOptions = [
+    { value: "", label: "Select source" },
+    ...(sourcesData?.sources ?? []).map((s) => ({
+      value: s.name,
+      label: s.name.replace(/_/g, " "),
+    })),
+  ];
+  const stageOptions = stagesData?.stages ?? [];
+  const defaultStageId = useMemo(
+    () => stageOptions.find((s) => s.is_default)?.id ?? stageOptions[0]?.id ?? "",
+    [stageOptions]
+  );
+  const initialValues = useMemo<LeadFormValues>(
+    () => ({ ...emptyLeadFormValues, stage_id: defaultStageId }),
+    [defaultStageId]
+  );
 
   const handleSubmit = (values: LeadFormValues) => {
     const payload = leadFormValuesToPayload(values);
     createLead.mutate(
       {
-        name: payload.name,
+        first_name: payload.first_name,
+        last_name: payload.last_name,
         email: payload.email,
         phone: payload.phone,
-        company: payload.company,
+        company_id: payload.company_id,
         source: payload.source,
-        status: payload.status,
+        stage_id: payload.stage_id,
         notes: payload.notes,
         metadata: payload.metadata,
+        assignee_ids: payload.assignee_ids,
       },
       {
         onSuccess: (data) => {
@@ -55,12 +76,15 @@ export default function NewLeadPage() {
         </div>
 
         <LeadForm
-        initialValues={emptyLeadFormValues}
-        mode="create"
-        onSubmit={handleSubmit}
-        onCancel={() => router.push(`/${orgId}/leads`)}
-        isPending={createLead.isPending}
-      />
+          orgId={orgId}
+          initialValues={initialValues}
+          mode="create"
+          onSubmit={handleSubmit}
+          onCancel={() => router.push(`/${orgId}/leads`)}
+          isPending={createLead.isPending}
+          sourceOptions={sourceOptions}
+          stageOptions={stageOptions}
+        />
       </div>
     </div>
   );

@@ -28,6 +28,8 @@ export function truncate(
 
 const DEFAULT_DATE_LOCALE = "en-US";
 
+type TimeFormatPreference = "12h" | "24h";
+
 /** Options for date/time formatting. Tweak here to change behavior project-wide. */
 export const getDateFormat = {
   /** Date only (e.g. Jan 15, 2025) */
@@ -37,20 +39,22 @@ export const getDateFormat = {
       month: "short",
       day: "numeric",
     }),
-  /** Date + time (e.g. Jan 15, 2025, 2:30 PM) */
-  datetime: (locale = DEFAULT_DATE_LOCALE) =>
+  /** Date + time (e.g. Jan 15, 2025, 2:30 PM). Pass timeFormat to respect 12h/24h setting. */
+  datetime: (locale = DEFAULT_DATE_LOCALE, timeFormat?: TimeFormatPreference) =>
     new Intl.DateTimeFormat(locale, {
       year: "numeric",
       month: "short",
       day: "numeric",
       hour: "numeric",
       minute: "2-digit",
+      hour12: timeFormat ? timeFormat === "12h" : undefined,
     }),
-  /** Time only (e.g. 2:30 PM) */
-  time: (locale = DEFAULT_DATE_LOCALE) =>
+  /** Time only (e.g. 2:30 PM or 14:30). Pass timeFormat to respect 12h/24h setting. */
+  time: (locale = DEFAULT_DATE_LOCALE, timeFormat?: TimeFormatPreference) =>
     new Intl.DateTimeFormat(locale, {
       hour: "numeric",
       minute: "2-digit",
+      hour12: timeFormat ? timeFormat === "12h" : undefined,
     }),
 };
 
@@ -68,29 +72,33 @@ export function formatDate(
 }
 
 /**
- * Format a date string or Date as time only (e.g. 2:30 PM).
+ * Format a date string or Date as time only (e.g. 2:30 PM or 14:30).
+ * timeFormat: use "12h" or "24h" to match org settings; omit for locale default.
  */
 export function formatTime(
   value: string | Date | null | undefined,
-  locale = DEFAULT_DATE_LOCALE
+  locale = DEFAULT_DATE_LOCALE,
+  timeFormat?: TimeFormatPreference
 ): string {
   if (value == null) return "—";
   const d = typeof value === "string" ? new Date(value) : value;
   if (Number.isNaN(d.getTime())) return "—";
-  return getDateFormat.time(locale).format(d);
+  return getDateFormat.time(locale, timeFormat).format(d);
 }
 
 /**
- * Format a date string or Date as date + time.
+ * Format a date string or Date as date + time (e.g. Mar 3, 2025, 1:10 AM).
+ * timeFormat: use "12h" or "24h" to match org settings; omit for locale default.
  */
 export function formatDateTime(
   value: string | Date | null | undefined,
-  locale = DEFAULT_DATE_LOCALE
+  locale = DEFAULT_DATE_LOCALE,
+  timeFormat?: TimeFormatPreference
 ): string {
   if (value == null) return "—";
   const d = typeof value === "string" ? new Date(value) : value;
   if (Number.isNaN(d.getTime())) return "—";
-  return getDateFormat.datetime(locale).format(d);
+  return getDateFormat.datetime(locale, timeFormat).format(d);
 }
 
 /**

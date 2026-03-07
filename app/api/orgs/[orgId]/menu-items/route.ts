@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getTenantById, getMenuItemsPaginated, getMenuItemById } from "@/lib/supabase/queries";
+import { createActivityLog, ACTIONS, ENTITY_TYPES } from "@/lib/activity-log";
 import type { MenuItem } from "@/lib/supabase/types";
 
 /** GET paginated menu items. Query: page, pageSize, search */
@@ -128,5 +129,14 @@ export async function POST(
   }
 
   const item = await getMenuItemById(orgId, row.id);
+  await createActivityLog(supabase, {
+    tenantId: orgId,
+    userId: user.id,
+    action: ACTIONS.CREATE,
+    resourceType: ENTITY_TYPES.MENU_ITEM,
+    resourceId: row.id,
+    description: `Created menu item "${(item as MenuItem)?.name ?? "Menu item"}"`,
+    metadata: {},
+  });
   return NextResponse.json(item as MenuItem, { status: 201 });
 }

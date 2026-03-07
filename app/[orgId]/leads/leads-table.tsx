@@ -20,6 +20,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -32,20 +38,15 @@ import { TableLoadingSkeleton } from "@/components/table-loading-skeleton";
 import { Paginated } from "@/components/paginated";
 import { SearchBox } from "@/components/search-box";
 import { SourceChip } from "@/components/source-chip";
+import { EmailDisplay } from "@/components/email-display";
+import { PhoneDisplay } from "@/components/phone-display";
+import { DateDisplay } from "@/components/date-display";
+import { DisplayName } from "@/components/display-name";
+import { getLeadDisplayName } from "@/lib/display-name";
 import type { Lead } from "@/lib/supabase/types";
 import type { GetLeadsResult } from "@/hooks/use-leads";
-import { UserPlus, Filter, Pencil, Trash2, X } from "lucide-react";
+import { UserPlus, Filter, Pencil, Trash2, X, RefreshCw, Loader2, MoreVertical } from "lucide-react";
 import { isArrayWithValues } from "@/lib/is-array-with-values";
-import { cn } from "@/lib/utils";
-
-const STATUS_VARIANTS: Record<string, "secondary" | "default" | "outline" | "destructive"> = {
-  new: "secondary",
-  contacted: "default",
-  qualified: "default",
-  proposal: "outline",
-  won: "default",
-  lost: "destructive",
-};
 
 const columnHelper = createColumnHelper<Lead>();
 
@@ -56,7 +57,7 @@ type LeadsTableProps = {
     page?: string;
     pageSize?: string;
     search?: string;
-    status?: string;
+    stage?: string;
     source?: string;
     created_after?: string;
     created_before?: string;
@@ -70,8 +71,8 @@ type LeadsTableProps = {
   onSortChange?: (sortBy: string, order: "asc" | "desc") => void;
   selectedIds?: Set<string>;
   onSelectionChange?: (ids: Set<string>) => void;
-  bulkStatusOptions?: { value: string; label: string }[];
-  onBulkStatusChange?: (status: string) => void;
+  bulkStageOptions?: { id: string; name: string }[];
+  onBulkStageChange?: (stage_id: string) => void;
   onBulkDeleteClick?: () => void;
   bulkUpdatePending?: boolean;
   bulkDeletePending?: boolean;
@@ -80,6 +81,11 @@ type LeadsTableProps = {
   onFilterClick?: () => void;
   /** Map of source name -> hex color for SourceChip display. */
   sourceColors?: Record<string, string>;
+  /** Locale and time format for Created at column */
+  locale?: string;
+  timeFormat?: "12h" | "24h";
+  onRefresh?: () => void;
+  isRefetching?: boolean;
 };
 
 function SortableHeader({
@@ -122,8 +128,8 @@ export function LeadsTable({
   onSortChange,
   selectedIds = new Set(),
   onSelectionChange,
-  bulkStatusOptions = [],
-  onBulkStatusChange,
+  bulkStageOptions = [],
+  onBulkStageChange,
   onBulkDeleteClick,
   bulkUpdatePending = false,
   bulkDeletePending = false,
@@ -131,6 +137,10 @@ export function LeadsTable({
   onSearchChange,
   onFilterClick,
   sourceColors,
+  locale,
+  timeFormat,
+  onRefresh,
+  isRefetching = false,
 }: LeadsTableProps) {
   const pathname = usePathname();
   const { items, page, pageSize, total } = data;
@@ -175,50 +185,48 @@ export function LeadsTable({
               <Checkbox
                 checked={selectedIds.has(row.original.id)}
                 onCheckedChange={() => toggleSelection(row.original.id)}
-                aria-label={`Select ${row.original.name}`}
+                aria-label={`Select ${getLeadDisplayName(row.original)}`}
               />
             ),
           }),
         ]
         : []),
-      columnHelper.accessor("name", {
+      columnHelper.display({
+        id: "name",
         header: () => (
           <SortableHeader
             label="Name"
-            columnKey="name"
+            columnKey="last_name"
             currentSortBy={sortBy}
             currentOrder={order}
             onSortChange={onSortChange}
           />
         ),
-        cell: (ctx) => (
-          <Link
-            href={`/${orgId}/leads/${ctx.row.original.id}`}
-            className="font-medium hover:underline focus:outline-none focus:ring-2 focus:ring-ring rounded"
-          >
-            {ctx.getValue()}
-          </Link>
-        ),
+        cell: (ctx) => {
+          const lead = ctx.row.original;
+          const displayName = getLeadDisplayName(lead);
+          return (
+            <div className="flex flex-col gap-0.5">
+              <Link
+                href={`/${orgId}/leads/${lead.id}`}
+                className="font-medium hover:underline focus:outline-none focus:ring-2 focus:ring-ring rounded w-fit"
+              >
+                {displayName}
+              </Link>
+              {lead.company_name?.trim() && (
+                <span className="text-muted-foreground text-xs">{lead.company_name.trim()}</span>
+              )}
+            </div>
+          );
+        },
       }),
       columnHelper.accessor("email", {
         header: "Email",
-        cell: (ctx) => (
-          <span className="text-muted-foreground">{ctx.getValue() ?? "—"}</span>
-        ),
+        cell: (ctx) => <EmailDisplay email={ctx.getValue()} />,
       }),
-      columnHelper.accessor("company", {
-        header: () => (
-          <SortableHeader
-            label="Company"
-            columnKey="company"
-            currentSortBy={sortBy}
-            currentOrder={order}
-            onSortChange={onSortChange}
-          />
-        ),
-        cell: (ctx) => (
-          <span className="text-muted-foreground">{ctx.getValue() ?? "—"}</span>
-        ),
+      columnHelper.accessor("phone", {
+        header: "Mobile",
+        cell: (ctx) => <PhoneDisplay phone={ctx.getValue()} />,
       }),
       columnHelper.accessor("source", {
         header: "Source",
@@ -229,32 +237,53 @@ export function LeadsTable({
           />
         ),
       }),
-      columnHelper.accessor("status", {
+      columnHelper.display({
+        id: "stage",
         header: () => (
           <SortableHeader
-            label="Status"
-            columnKey="status"
+            label="Stage"
+            columnKey="stage_id"
             currentSortBy={sortBy}
             currentOrder={order}
             onSortChange={onSortChange}
           />
         ),
-        cell: (ctx) => {
-          const status = ctx.getValue();
+        cell: ({ row }) => {
+          const name = row.original.stage_name ?? row.original.stage_id ?? "—";
           return (
-            <Badge
-              variant={STATUS_VARIANTS[status] ?? "secondary"}
-              className={cn("text-[10px] font-normal capitalize", status === "lost" && "opacity-90")}
-            >
-              {status}
+            <Badge variant="secondary" className="text-[10px] font-normal">
+              {name}
             </Badge>
           );
         },
       }),
+      columnHelper.display({
+        id: "assignees",
+        header: "Assigned to",
+        cell: ({ row }) => {
+          const assignees = row.original.assignees ?? [];
+          const names = assignees.map((a) => a.name || a.email || a.user_id).filter(Boolean);
+          return (
+            <span className="text-muted-foreground text-xs truncate max-w-[120px] block" title={names.join(", ")}>
+              {names.length ? names.join(", ") : "—"}
+            </span>
+          );
+        },
+      }),
+      columnHelper.display({
+        id: "created_by",
+        header: "Created by",
+        cell: ({ row }) => (
+          <DisplayName
+            name={row.original.created_by_name ?? undefined}
+            size="sm"
+          />
+        ),
+      }),
       columnHelper.accessor("created_at", {
         header: () => (
           <SortableHeader
-            label="Created"
+            label="Created at"
             columnKey="created_at"
             currentSortBy={sortBy}
             currentOrder={order}
@@ -262,40 +291,49 @@ export function LeadsTable({
           />
         ),
         cell: (ctx) => (
-          <span className="text-muted-foreground text-xs">
-            {ctx.getValue()
-              ? new Date(ctx.getValue() as string).toLocaleDateString(undefined, {
-                year: "numeric",
-                month: "short",
-                day: "numeric",
-              })
-              : "—"}
-          </span>
+          <DateDisplay
+            value={ctx.getValue() as string}
+            variant="datetimeWithAgo"
+            layout="column"
+            timeAgoWithinDays={7}
+            locale={locale}
+            timeFormat={timeFormat}
+          />
         ),
       }),
       columnHelper.display({
         id: "actions",
         header: "",
         cell: ({ row }) => (
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon-xs" asChild>
-              <Link href={`/${orgId}/leads/${row.original.id}`}>
-                <Pencil className="size-3" />
-                <span className="sr-only">Edit</span>
-              </Link>
-            </Button>
-            {onDelete && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon-xs"
-                onClick={() => onDelete(row.original)}
-                className="text-destructive hover:text-destructive"
+                className="size-8 data-[state=open]:bg-muted"
+                aria-label="Actions"
               >
-                <Trash2 className="size-3" />
-                <span className="sr-only">Delete</span>
+                <MoreVertical className="size-3" />
               </Button>
-            )}
-          </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <Link href={`/${orgId}/leads/${row.original.id}`}>
+                  <Pencil className="size-3.5" />
+                  View / Edit
+                </Link>
+              </DropdownMenuItem>
+              {onDelete && (
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={() => onDelete(row.original)}
+                >
+                  <Trash2 className="size-3.5" />
+                  Delete
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         ),
       }),
     ],
@@ -308,6 +346,8 @@ export function LeadsTable({
       selectedIds,
       onSelectionChange,
       items.length,
+      locale,
+      timeFormat,
     ]
   );
 
@@ -319,7 +359,7 @@ export function LeadsTable({
 
   const searchParamsForPaginated = {
     ...(params.search && { search: params.search }),
-    ...(params.status && { status: params.status }),
+    ...(params.stage && { stage: params.stage }),
     ...(params.source && { source: params.source }),
     ...(params.created_after && { created_after: params.created_after }),
     ...(params.created_before && { created_before: params.created_before }),
@@ -329,27 +369,25 @@ export function LeadsTable({
 
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4">
-
-
+    <div className="flex h-full flex-1 flex-col gap-3 overflow-auto">
       {/* Bulk actions toolbar – sticky when any row is selected */}
       {selectedIds.size > 0 && (
-        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-md border bg-background px-3 py-2 shadow-sm">
+        <div className="sticky top-0 z-10 flex flex-wrap items-center px-4  gap-2 rounded-md border bg-background px-3 py-2 shadow-sm">
           <span className="text-sm font-medium">{selectedIds.size} selected</span>
-          {bulkStatusOptions.length > 0 && onBulkStatusChange && (
+          {bulkStageOptions.length > 0 && onBulkStageChange && (
             <Select
               onValueChange={(v) => {
-                if (v) onBulkStatusChange(v);
+                if (v) onBulkStageChange(v);
               }}
               disabled={bulkUpdatePending}
             >
               <SelectTrigger className="h-8 w-36">
-                <SelectValue placeholder="Set status" />
+                <SelectValue placeholder="Set stage" />
               </SelectTrigger>
               <SelectContent>
-                {bulkStatusOptions.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
+                {bulkStageOptions.map((opt) => (
+                  <SelectItem key={opt.id} value={opt.id}>
+                    {opt.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -381,13 +419,28 @@ export function LeadsTable({
       )}
 
       {/* Top bar: count (left) | Search, Filters, Create (right) */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-muted-foreground text-sm">
+      <div className="flex flex-wrap px-4  items-center justify-between gap-3">
+        <p className="text text-sm">
           {total === 0
             ? "No leads"
             : `Showing ${from}–${to} of ${total} leads`}
         </p>
         <div className="flex flex-wrap items-center gap-2">
+          {onRefresh && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onRefresh()}
+              disabled={isRefetching}
+              aria-label="Refresh"
+            >
+              {isRefetching ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="size-3.5" />
+              )}
+            </Button>
+          )}
           {onSearchChange && (
             <SearchBox
               value={searchValue}
@@ -417,74 +470,77 @@ export function LeadsTable({
       </div>
 
 
-      {isLoading ? (
-        <TableLoadingSkeleton columnCount={5} rowCount={10} compact />
-      ) : isArrayWithValues(items) ? (
-        <div className="relative flex min-h-[260px] max-h-[520px] flex-1 flex-col overflow-y-auto rounded-md border">
-          <Table>
-            <TableHeader className="sticky top-0 z-10 bg-muted/60 backdrop-blur">
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <TableHead
-                      key={header.id}
-                      className="h-8 px-3 text-xs"
-                    >
-                      {flexRender(
-                        header.column.columnDef.header,
-                        header.getContext()
-                      )}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  className="[&_td]:py-1.5 [&_td]:px-3 [&_td]:text-xs"
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      ) : (
-        <EmptyState
-          title={
-            params.search || params.status || params.source || params.created_after || params.created_before
-              ? "No results for your filters"
-              : "No leads"
-          }
-          description={
-            params.search || params.status || params.source || params.created_after || params.created_before
-              ? "Try adjusting filters or clear them."
-              : "Add your first lead to get started."
-          }
-          icon={UserPlus}
-          action={
-            params.search ? undefined : (
-              <Button size="sm" asChild>
-                <Link href={`/${orgId}/leads/new`}>
-                  <UserPlus className="size-3.5" />
-                  Create lead
-                </Link>
-              </Button>
-            )
-          }
-        />
-      )}
+      <div className="flex flex-col flex-1 h-full overflow-auto px-4">
+        {isLoading ? (
+          <TableLoadingSkeleton columnCount={5} rowCount={10} compact />
+        ) : isArrayWithValues(items) ? (
 
-      {totalPages > 1 && (
+          <div className="flex max-h-fit flex-1 flex-col overflow-auto rounded-md border">
+            <Table>
+              <TableHeader className="sticky top-0 z-10 bg-muted/60 backdrop-blur">
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <TableHead
+                        key={header.id}
+                        className="h-8 px-3 text-xs"
+                      >
+                        {flexRender(
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableHeader>
+              <TableBody>
+                {table.getRowModel().rows.map((row) => (
+                  <TableRow
+                    key={row.id}
+                    className="[&_td]:py-1.5 [&_td]:px-3 [&_td]:text-xs"
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        ) : (
+          <EmptyState
+            title={
+              params.search || params.stage || params.source || params.created_after || params.created_before
+                ? "No results for your filters"
+                : "No leads"
+            }
+            description={
+              params.search || params.stage || params.source || params.created_after || params.created_before
+                ? "Try adjusting filters or clear them."
+                : "Add your first lead to get started."
+            }
+            icon={UserPlus}
+            action={
+              params.search ? undefined : (
+                <Button size="sm" asChild>
+                  <Link href={`/${orgId}/leads/new`}>
+                    <UserPlus className="size-3.5" />
+                    Create lead
+                  </Link>
+                </Button>
+              )
+            }
+          />
+        )}
+      </div>
+
+      <div className="border-t bg-background shrink-0">
         <Paginated
           pathname={pathname}
           page={page}
@@ -493,8 +549,9 @@ export function LeadsTable({
           defaultPageSize={10}
           params={searchParamsForPaginated}
           pageSizeOptions={[10, 25, 50, 100]}
+          className="sticky bottom-0 z-20"
         />
-      )}
+      </div>
     </div>
   );
 }

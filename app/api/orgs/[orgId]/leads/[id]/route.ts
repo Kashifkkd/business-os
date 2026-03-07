@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { apiSuccess, apiError, API_ERROR_CODES } from "@/lib/api-response";
 import { getTenantById } from "@/lib/supabase/queries";
+import { createActivityLog, ACTIONS, ENTITY_TYPES } from "@/lib/activity-log";
 import type { Lead } from "@/lib/supabase/types";
 
 const LEAD_SELECT =
-  "id, tenant_id, name, email, phone, company, source, status, notes, metadata, created_at, updated_at";
+  "id, tenant_id, first_name, last_name, email, phone, company_id, source, stage_id, notes, metadata, created_at, updated_at, created_by";
 
 export async function GET(
   _request: Request,
@@ -40,18 +41,63 @@ export async function GET(
     return NextResponse.json(apiError(API_ERROR_CODES.NOT_FOUND, "Lead not found"), { status: 404 });
   }
 
-  return NextResponse.json(apiSuccess(row as Lead));
+  const lead = row as Lead & { company_id?: string | null; created_by?: string | null; stage_id?: string };
+  const [stageRes, companyRes, assigneesRes] = await Promise.all([
+    lead.stage_id
+      ? supabase.from("lead_stages").select("id, name").eq("id", lead.stage_id).single()
+      : Promise.resolve({ data: null }),
+    lead.company_id
+      ? supabase.from("companies").select("id, name").eq("id", lead.company_id).single()
+      : Promise.resolve({ data: null }),
+    supabase.from("lead_assignees").select("user_id").eq("lead_id", id),
+  ]);
+
+  const assigneeIds = (assigneesRes.data ?? []).map((a: { user_id: string }) => a.user_id);
+  const profileIds = [...new Set([...(lead.created_by ? [lead.created_by] : []), ...assigneeIds])];
+  let assignees: { user_id: string; name: string | null; email: string | null }[] = [];
+  let created_by_name: string | null = null;
+  if (profileIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, first_name, last_name, email")
+      .in("id", profileIds);
+    const name = (p: { first_name: string | null; last_name: string | null; email: string | null }) =>
+      [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || p.email || null;
+    if (lead.created_by && profiles?.length) {
+      const creator = profiles.find((p: { id: string }) => p.id === lead.created_by);
+      created_by_name = creator ? name(creator) : null;
+    }
+    assignees = (profiles ?? [])
+      .filter((p: { id: string }) => assigneeIds.includes(p.id))
+      .map((p: { id: string; first_name: string | null; last_name: string | null; email: string | null }) => ({
+        user_id: p.id,
+        name: name(p),
+        email: p.email ?? null,
+      }));
+  }
+
+  const result: Lead = {
+    ...lead,
+    stage_name: stageRes.data?.name ?? null,
+    company_name: companyRes.data?.name ?? null,
+    created_by_name: created_by_name ?? undefined,
+    assignee_ids: assigneeIds,
+    assignees,
+  };
+  return NextResponse.json(apiSuccess(result));
 }
 
 export type UpdateLeadBody = Partial<{
-  name: string;
+  first_name: string;
+  last_name: string | null;
   email: string | null;
   phone: string | null;
-  company: string | null;
+  company_id: string | null;
   source: string | null;
-  status: string;
+  stage_id: string;
   notes: string | null;
   metadata: Record<string, unknown>;
+  assignee_ids: string[];
 }>;
 
 export async function PATCH(
@@ -95,12 +141,15 @@ export async function PATCH(
   }
 
   const payload: Record<string, unknown> = {};
-  if (typeof body.name === "string") {
-    const nameTrim = body.name.trim();
-    if (!nameTrim) {
-      return NextResponse.json(apiError(API_ERROR_CODES.VALIDATION_ERROR, "Name is required"), { status: 400 });
+  if (typeof body.first_name === "string") {
+    const firstTrim = body.first_name.trim();
+    if (!firstTrim) {
+      return NextResponse.json(apiError(API_ERROR_CODES.VALIDATION_ERROR, "First name is required"), { status: 400 });
     }
-    payload.name = nameTrim;
+    payload.first_name = firstTrim;
+  }
+  if (body.last_name !== undefined) {
+    payload.last_name = typeof body.last_name === "string" ? body.last_name.trim() : null;
   }
   if (body.email !== undefined) {
     payload.email = typeof body.email === "string" && body.email.trim() ? body.email.trim() : null;
@@ -108,14 +157,14 @@ export async function PATCH(
   if (body.phone !== undefined) {
     payload.phone = typeof body.phone === "string" && body.phone.trim() ? body.phone.trim() : null;
   }
-  if (body.company !== undefined) {
-    payload.company = typeof body.company === "string" && body.company.trim() ? body.company.trim() : null;
+  if (body.company_id !== undefined) {
+    payload.company_id = typeof body.company_id === "string" && body.company_id.trim() ? body.company_id.trim() : null;
   }
   if (body.source !== undefined) {
     payload.source = typeof body.source === "string" && body.source.trim() ? body.source.trim() : null;
   }
-  if (typeof body.status === "string" && body.status.trim()) {
-    payload.status = body.status.trim();
+  if (typeof body.stage_id === "string" && body.stage_id.trim()) {
+    payload.stage_id = body.stage_id.trim();
   }
   if (body.notes !== undefined) {
     payload.notes = typeof body.notes === "string" && body.notes.trim() ? body.notes.trim() : null;
@@ -124,7 +173,20 @@ export async function PATCH(
     payload.metadata = body.metadata;
   }
 
-  if (Object.keys(payload).length === 0) {
+  const assignee_ids = body.assignee_ids !== undefined && Array.isArray(body.assignee_ids)
+    ? (body.assignee_ids as string[]).filter((uid) => typeof uid === "string" && uid.trim())
+    : undefined;
+
+  if (assignee_ids !== undefined) {
+    await supabase.from("lead_assignees").delete().eq("lead_id", id);
+    if (assignee_ids.length > 0) {
+      await supabase.from("lead_assignees").insert(
+        assignee_ids.map((user_id) => ({ lead_id: id, user_id, tenant_id: orgId }))
+      );
+    }
+  }
+
+  if (Object.keys(payload).length === 0 && assignee_ids === undefined) {
     return NextResponse.json(apiSuccess(existing as Lead));
   }
 
@@ -140,7 +202,18 @@ export async function PATCH(
     return NextResponse.json(apiError(API_ERROR_CODES.BAD_REQUEST, error.message), { status: 400 });
   }
 
-  return NextResponse.json(apiSuccess(updated as Lead));
+  const lead = updated as Lead;
+  await createActivityLog(supabase, {
+    tenantId: orgId,
+    userId: user.id,
+    action: ACTIONS.UPDATE,
+    resourceType: ENTITY_TYPES.LEAD,
+    resourceId: lead.id,
+    description: `Updated lead "${[lead.first_name, lead.last_name].filter(Boolean).join(" ") || "Lead"}"`,
+    metadata: {},
+  });
+
+  return NextResponse.json(apiSuccess(lead));
 }
 
 export async function DELETE(
@@ -167,7 +240,7 @@ export async function DELETE(
 
   const { data: existing, error: fetchError } = await supabase
     .from("leads")
-    .select("id")
+    .select("id, first_name, last_name")
     .eq("tenant_id", orgId)
     .eq("id", id)
     .single();
@@ -181,6 +254,19 @@ export async function DELETE(
   if (error) {
     return NextResponse.json(apiError(API_ERROR_CODES.BAD_REQUEST, error.message), { status: 400 });
   }
+
+  const leadName = existing
+    ? [existing.first_name, existing.last_name].filter(Boolean).join(" ").trim() || "Lead"
+    : "Lead";
+  await createActivityLog(supabase, {
+    tenantId: orgId,
+    userId: user.id,
+    action: ACTIONS.DELETE,
+    resourceType: ENTITY_TYPES.LEAD,
+    resourceId: id,
+    description: `Deleted lead "${leadName}"`,
+    metadata: {},
+  });
 
   return NextResponse.json(apiSuccess({ deleted: true }));
 }

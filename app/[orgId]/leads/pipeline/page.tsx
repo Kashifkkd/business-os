@@ -19,13 +19,15 @@ import {
   useLeads,
   useUpdateLeadById,
   useLeadSources,
+  useLeadStages,
   type GetLeadsResult,
 } from "@/hooks/use-leads";
 import { sourceColorMap } from "@/lib/lead-sources";
 import { SourceChip } from "@/components/source-chip";
-import { getStageColors, getStageBorderClasses } from "@/lib/lead-stage-colors";
+import { getStageBorderClasses } from "@/lib/lead-stage-colors";
 import { formatTimeAgo } from "@/lib/format";
-import type { Lead, LeadStatus } from "@/lib/supabase/types";
+import type { Lead } from "@/lib/supabase/types";
+import type { LeadStageItem } from "@/lib/lead-stages";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -40,36 +42,31 @@ import { cn } from "@/lib/utils";
 
 const SLOT_PREFIX = "slot-";
 
-function parseSlotId(id: string): { status: LeadStatus; index: number } | null {
-  if (!id || typeof id !== "string" || !id.startsWith(SLOT_PREFIX)) return null;
-  const parts = id.slice(SLOT_PREFIX.length).split("-");
-  if (parts.length < 2) return null;
-  const index = parseInt(parts[parts.length - 1], 10);
-  const status = parts.slice(0, -1).join("-") as LeadStatus;
-  if (Number.isNaN(index) || index < 0) return null;
-  const valid: LeadStatus[] = ["new", "contacted", "qualified", "proposal", "won", "lost"];
-  if (!valid.includes(status)) return null;
-  return { status, index };
+function slotId(stageId: string, index: number): string {
+  return `${SLOT_PREFIX}${stageId}-${index}`;
 }
 
-const PIPELINE_STATUSES: { status: LeadStatus; label: string }[] = [
-  { status: "new", label: "New" },
-  { status: "contacted", label: "Contacted" },
-  { status: "qualified", label: "Qualified" },
-  { status: "proposal", label: "Proposal" },
-  { status: "won", label: "Won" },
-  { status: "lost", label: "Lost" },
-];
+function parseSlotId(id: string): { stageId: string; index: number } | null {
+  if (!id || typeof id !== "string" || !id.startsWith(SLOT_PREFIX)) return null;
+  const rest = id.slice(SLOT_PREFIX.length);
+  const lastDash = rest.lastIndexOf("-");
+  if (lastDash < 0) return null;
+  const index = parseInt(rest.slice(lastDash + 1), 10);
+  const stageId = rest.slice(0, lastDash);
+  if (Number.isNaN(index) || index < 0 || !stageId) return null;
+  return { stageId, index };
+}
 
 type LeadCardProps = {
   lead: Lead;
   orgId: string;
   sourceColors: Record<string, string>;
+  stageColor?: string;
   isOverlay?: boolean;
 };
 
-function LeadCard({ lead, orgId, sourceColors, isOverlay }: LeadCardProps) {
-  const borderClasses = getStageBorderClasses(lead.status as LeadStatus);
+function LeadCard({ lead, orgId, sourceColors, stageColor, isOverlay }: LeadCardProps) {
+  const borderClasses = stageColor ? "border-l-4" : getStageBorderClasses((lead.stage_name?.toLowerCase() ?? "new") as "new" | "contacted" | "qualified" | "proposal" | "won" | "lost");
 
   return (
     <Card
@@ -78,6 +75,7 @@ function LeadCard({ lead, orgId, sourceColors, isOverlay }: LeadCardProps) {
         borderClasses,
         !isOverlay && "hover:shadow-md"
       )}
+      style={stageColor ? { borderLeftColor: stageColor } : undefined}
     >
       <Link
         href={`/${orgId}/leads/${lead.id}`}
@@ -86,12 +84,12 @@ function LeadCard({ lead, orgId, sourceColors, isOverlay }: LeadCardProps) {
       >
         <CardContent className="w-full px-2 py-2">
           <div className="flex w-full flex-col gap-1.5">
-            <p className="w-full truncate font-medium text-sm">{lead.name}</p>
+            <p className="w-full truncate font-medium text-sm">{[lead.first_name, lead.last_name].filter(Boolean).join(" ").trim() || "—"}</p>
             <div className="flex w-full flex-col gap-1">
-              {lead.company && (
+              {lead.company_name && (
                 <div className="flex w-full min-w-0 items-center gap-1.5 text-muted-foreground">
                   <Building2 className="size-3 shrink-0" />
-                  <span className="min-w-0 flex-1 truncate text-xs">{lead.company}</span>
+                  <span className="min-w-0 flex-1 truncate text-xs">{lead.company_name}</span>
                 </div>
               )}
               {lead.email && (
@@ -135,6 +133,7 @@ function DraggableLeadCard({
   lead,
   orgId,
   sourceColors,
+  stageColor,
   isDragging,
 }: DraggableLeadCardProps) {
   const { attributes, listeners, setNodeRef, isDragging: dndDragging } = useDraggable({
@@ -155,7 +154,7 @@ function DraggableLeadCard({
         !dragging && "cursor-grab active:cursor-grabbing"
       )}
     >
-      <LeadCard lead={lead} orgId={orgId} sourceColors={sourceColors} />
+      <LeadCard lead={lead} orgId={orgId} sourceColors={sourceColors} stageColor={stageColor} />
     </div>
   );
 }
@@ -175,60 +174,48 @@ function InsertionSlot({ id }: { id: string }) {
 }
 
 type PipelineColumnProps = {
-  status: LeadStatus;
-  label: string;
+  stage: LeadStageItem;
   leads: Lead[];
   orgId: string;
   sourceColors: Record<string, string>;
 };
 
-function PipelineColumn({ status, label, leads, orgId, sourceColors }: PipelineColumnProps) {
-  const colors = getStageColors(status);
+function PipelineColumn({ stage, leads, orgId, sourceColors }: PipelineColumnProps) {
+  const borderColor = stage.color ?? "#64748b";
 
   return (
     <div
-      className={cn(
-        "flex h-full min-h-0 w-72 shrink-0 flex-col overflow-hidden rounded-lg border-2 bg-background transition-colors",
-        colors.border
-      )}
+      className="flex h-full min-h-0 w-72 shrink-0 flex-col overflow-hidden rounded-lg border-2 border-border bg-background transition-colors"
+      style={{ borderTopColor: borderColor, borderTopWidth: 2 }}
     >
-      <div className={cn("shrink-0 border-b border-border/50 px-3 py-2", colors.bgMuted)}>
-        <h2 className={cn("font-semibold text-sm capitalize", colors.text)}>{label}</h2>
+      <div className="shrink-0 border-b border-border/50 bg-muted/50 px-3 py-2">
+        <h2 className="font-semibold text-sm">{stage.name}</h2>
         <p className="text-muted-foreground text-xs mt-0.5">{leads.length} leads</p>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto bg-background px-2">
         <div className="space-y-1">
           {leads.flatMap((lead, i) => [
-            <InsertionSlot key={`slot-${i}`} id={`${SLOT_PREFIX}${status}-${i}`} />,
+            <InsertionSlot key={`slot-${i}`} id={slotId(stage.id, i)} />,
             <DraggableLeadCard
               key={lead.id}
               lead={lead}
               orgId={orgId}
               sourceColors={sourceColors}
+              stageColor={stage.color}
             />,
           ])}
-          <InsertionSlot
-            key={`slot-${leads.length}`}
-            id={`${SLOT_PREFIX}${status}-${leads.length}`}
-          />
+          <InsertionSlot key={`slot-${leads.length}`} id={slotId(stage.id, leads.length)} />
         </div>
       </div>
     </div>
   );
 }
 
-function PipelineColumnSkeleton({ status, label }: { status: LeadStatus; label: string }) {
-  const colors = getStageColors(status);
-
+function PipelineColumnSkeleton({ label }: { label: string }) {
   return (
-    <div
-      className={cn(
-        "flex h-full min-h-0 w-72 shrink-0 flex-col overflow-hidden rounded-lg border-2 bg-background",
-        colors.border
-      )}
-    >
-      <div className={cn("shrink-0 border-b border-border/50 px-3 py-2", colors.bgMuted)}>
-        <h2 className={cn("font-semibold text-sm capitalize", colors.text)}>{label}</h2>
+    <div className="flex h-full min-h-0 w-72 shrink-0 flex-col overflow-hidden rounded-lg border-2 border-border bg-background">
+      <div className="shrink-0 border-b border-border/50 bg-muted/50 px-3 py-2">
+        <h2 className="font-semibold text-sm">{label}</h2>
         <Skeleton className="mt-1 h-3 w-12" />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto bg-background px-2 py-2">
@@ -302,27 +289,28 @@ export default function LeadsPipelinePage() {
     created_before: createdBefore || undefined,
   });
   const { data: sourcesData } = useLeadSources(orgId);
+  const { data: stagesData } = useLeadStages(orgId);
   const sourceColors = sourceColorMap(sourcesData?.sources ?? []);
+  const stages = useMemo(() => stagesData?.stages ?? [], [stagesData?.stages]);
   const queryClient = useQueryClient();
   const updateLead = useUpdateLeadById(orgId);
 
-  const byStatus = useMemo(() => {
+  const byStage = useMemo(() => {
     const items = data?.items ?? [];
-    const map: Record<LeadStatus, Lead[]> = {
-      new: [],
-      contacted: [],
-      qualified: [],
-      proposal: [],
-      won: [],
-      lost: [],
-    };
-    const statuses: LeadStatus[] = ["new", "contacted", "qualified", "proposal", "won", "lost"];
+    const map: Record<string, Lead[]> = {};
+    for (const s of stages) {
+      map[s.id] = [];
+    }
+    const defaultStageId = stages[0]?.id;
     for (const lead of items) {
-      const s = statuses.includes(lead.status as LeadStatus) ? (lead.status as LeadStatus) : "new";
-      map[s].push(lead);
+      const sid = lead.stage_id && map[lead.stage_id] ? lead.stage_id : defaultStageId;
+      if (sid) {
+        if (!map[sid]) map[sid] = [];
+        map[sid].push(lead);
+      }
     }
     return map;
-  }, [data?.items]);
+  }, [data?.items, stages]);
 
   const leadMap = useMemo(() => {
     const m = new Map<string, Lead>();
@@ -333,9 +321,7 @@ export default function LeadsPipelinePage() {
   }, [data?.items]);
 
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
-  const [optimisticByStatus, setOptimisticByStatus] = useState<Record<LeadStatus, Lead[]> | null>(
-    null
-  );
+  const [optimisticByStage, setOptimisticByStage] = useState<Record<string, Lead[]> | null>(null);
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -352,28 +338,30 @@ export default function LeadsPipelinePage() {
   }, [updateError]);
 
 
-  const displayByStatus = optimisticByStatus ?? byStatus;
+  const displayByStage = optimisticByStage ?? byStage;
 
   const applyMove = useCallback(
     (
-      prev: Record<LeadStatus, Lead[]>,
+      prev: Record<string, Lead[]>,
       leadId: string,
-      fromStatus: LeadStatus,
-      toStatus: LeadStatus,
+      fromStageId: string,
+      toStageId: string,
       insertIndex: number
-    ): Record<LeadStatus, Lead[]> => {
+    ): Record<string, Lead[]> => {
       const lead = leadMap.get(leadId);
       if (!lead) return prev;
 
-      const next = { ...prev };
-      next[fromStatus] = next[fromStatus].filter((l) => l.id !== leadId);
-      const updatedLead = { ...lead, status: toStatus };
-      const target = [...next[toStatus]];
+      const next: Record<string, Lead[]> = {};
+      for (const k of Object.keys(prev)) {
+        next[k] = k === fromStageId ? prev[k].filter((l) => l.id !== leadId) : [...prev[k]];
+      }
+      const updatedLead = { ...lead, stage_id: toStageId, stage_name: stages.find((s) => s.id === toStageId)?.name };
+      const target = [...(next[toStageId] ?? [])];
       target.splice(Math.min(insertIndex, target.length), 0, updatedLead);
-      next[toStatus] = target;
+      next[toStageId] = target;
       return next;
     },
-    [leadMap]
+    [leadMap, stages]
   );
 
   const sensors = useSensors(
@@ -399,19 +387,19 @@ export default function LeadsPipelinePage() {
     const parsed = parseSlotId(String(overId));
     if (!parsed) return;
 
-    const { status: newStatus, index: insertIndex } = parsed;
-    const validStatuses: LeadStatus[] = ["new", "contacted", "qualified", "proposal", "won", "lost"];
-    if (!validStatuses.includes(newStatus)) return;
+    const { stageId: toStageId, index: insertIndex } = parsed;
+    if (!stages.some((s) => s.id === toStageId)) return;
 
-    const fromStatus = lead.status as LeadStatus;
+    const fromStageId = lead.stage_id;
     setUpdateError(null);
-    setOptimisticByStatus(
-      applyMove(displayByStatus, leadId, fromStatus, newStatus, insertIndex)
+    setOptimisticByStage(
+      applyMove(displayByStage, leadId, fromStageId, toStageId, insertIndex)
     );
 
-    if (fromStatus !== newStatus) {
+    if (fromStageId !== toStageId) {
+      const stageName = stages.find((s) => s.id === toStageId)?.name;
       updateLead.mutate(
-        { leadId, data: { status: newStatus } },
+        { leadId, data: { stage_id: toStageId } },
         {
           onSuccess: () => {
             queryClient.setQueriesData<GetLeadsResult>(
@@ -421,15 +409,15 @@ export default function LeadsPipelinePage() {
                 return {
                   ...old,
                   items: old.items.map((l) =>
-                    l.id === leadId ? { ...l, status: newStatus } : l
+                    l.id === leadId ? { ...l, stage_id: toStageId, stage_name: stageName ?? l.stage_name } : l
                   ),
                 };
               }
             );
-            setOptimisticByStatus(null);
+            setOptimisticByStage(null);
           },
           onError: (err) => {
-            setOptimisticByStatus(null);
+            setOptimisticByStage(null);
             setUpdateError(err?.message ?? "Failed to update");
           },
         }
@@ -463,7 +451,7 @@ export default function LeadsPipelinePage() {
           <div>
             <h1 className="text-lg font-semibold">Pipeline</h1>
             <p className="text-sm text-muted-foreground">
-              Drag cards between columns to update status.
+              Drag cards between columns to update stage.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -496,9 +484,9 @@ export default function LeadsPipelinePage() {
         <div className="flex h-full flex-1 gap-4 overflow-auto pb-2">
           {showSkeleton ? (
             <>
-              {PIPELINE_STATUSES.map(({ status, label }) => (
-                <PipelineColumnSkeleton key={status} status={status} label={label} />
-              ))}
+              {stages.length > 0
+                ? stages.map((s) => <PipelineColumnSkeleton key={s.id} label={s.name} />)
+                : [1, 2, 3].map((i) => <PipelineColumnSkeleton key={i} label={`Stage ${i}`} />)}
             </>
           ) : showEmpty ? (
             <div className="flex w-full min-w-0 flex-1 items-center">
@@ -512,12 +500,11 @@ export default function LeadsPipelinePage() {
             </div>
           ) : (
             <>
-              {PIPELINE_STATUSES.map(({ status, label }) => (
+              {stages.map((stage) => (
                 <PipelineColumn
-                  key={status}
-                  status={status}
-                  label={label}
-                  leads={displayByStatus[status]}
+                  key={stage.id}
+                  stage={stage}
+                  leads={displayByStage[stage.id] ?? []}
                   orgId={orgId}
                   sourceColors={sourceColors}
                 />
@@ -544,6 +531,7 @@ export default function LeadsPipelinePage() {
               lead={activeLead}
               orgId={orgId}
               sourceColors={sourceColors}
+              stageColor={activeLead.stage_id ? stages.find((s) => s.id === activeLead.stage_id)?.color : undefined}
               isOverlay
             />
           </div>

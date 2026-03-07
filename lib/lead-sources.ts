@@ -1,3 +1,11 @@
+/** Creator details returned by API; extensible (first_name, last_name, etc.). */
+export type LeadSourceCreatedBy = {
+  id: string;
+  name: string | null;
+  email?: string | null;
+  avatar_url?: string | null;
+};
+
 /** A lead source option with optional display color (hex). Used in chips and filters. */
 export type LeadSourceItem = {
   name: string;
@@ -5,9 +13,8 @@ export type LeadSourceItem = {
   /** Set when loaded from API (table row). */
   id?: string;
   created_at?: string;
-  created_by?: string | null;
-  /** Display name for created_by (if resolved). */
-  created_by_name?: string | null;
+  /** Resolved creator details from API. */
+  created_by?: LeadSourceCreatedBy | null;
 };
 
 export const DEFAULT_SOURCE_COLOR = "#64748b";

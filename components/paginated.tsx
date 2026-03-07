@@ -17,6 +17,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { cn } from "@/lib/utils";
 
 export type PaginatedParams = Record<string, string>;
 
@@ -35,6 +36,8 @@ type PaginatedProps = {
   params?: PaginatedParams;
   /** Page size options for selector; when omitted, selector is hidden */
   pageSizeOptions?: number[];
+  /** Optional className (e.g. "sticky bottom-0 z-20" when fixed at bottom) */
+  className?: string;
 };
 
 function buildQuery(
@@ -58,6 +61,7 @@ export function Paginated({
   defaultPageSize = 10,
   params = {},
   pageSizeOptions = [10, 20, 50, 100],
+  className,
 }: PaginatedProps) {
   const router = useRouter();
 
@@ -94,32 +98,33 @@ export function Paginated({
     [pathname, params, defaultPageSize, router]
   );
 
-  if (totalPages <= 1) return null;
-
-
   return (
-    <div className="sticky bottom-0 z-20 border-t bg-background/95 px-2 py-2 backdrop-blur">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {pageSizeOptions.length > 0 && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Rows per page</span>
-            <Select
-              value={String(pageSize)}
-              onValueChange={handlePageSizeChange}
-            >
-              <SelectTrigger className="h-8 w-20">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {pageSizeOptions.map((opt) => (
-                  <SelectItem key={opt} value={String(opt)}>
-                    {opt}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+    <div className={cn("px-2 py-1.5", className)}>
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+        <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+          {pageSizeOptions.length > 0 ? (
+            <>
+              <span className="shrink-0">Rows per page</span>
+              <Select
+                value={String(pageSize)}
+                onValueChange={handlePageSizeChange}
+              >
+                <SelectTrigger className="h-8 w-20 shrink-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {pageSizeOptions.map((opt) => (
+                    <SelectItem key={opt} value={String(opt)}>
+                      {opt}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
+          ) : (
+            <span />
+          )}
+        </div>
 
         <Pagination>
           <PaginationContent>
@@ -163,6 +168,8 @@ export function Paginated({
             </PaginationItem>
           </PaginationContent>
         </Pagination>
+
+        <div className="min-w-0" aria-hidden />
       </div>
     </div>
   );

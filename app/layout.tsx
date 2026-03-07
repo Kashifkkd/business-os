@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Noto_Sans } from "next/font/google";
+import { Geist, Geist_Mono, Noto_Sans, Syne } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
@@ -7,6 +7,11 @@ import { SmoothScroll } from "@/components/smooth-scroll";
 import "./globals.css";
 
 const notoSans = Noto_Sans({ variable: "--font-sans" });
+
+const syne = Syne({
+  variable: "--font-display",
+  subsets: ["latin"],
+});
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,9 +24,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Business - OS",
+  title: "Business OS – ERP for modern teams",
   description:
-    "Multi-tenant SaaS for cafe and real estate. Manage your business in one place.",
+    "One place for operations, finance, and growth. Enterprise power meets modern startup elegance.",
 };
 
 export default function RootLayout({
@@ -30,7 +35,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${notoSans.variable} lenis lenis-smooth`}>
+    <html lang="en" suppressHydrationWarning className={`${notoSans.variable} ${syne.variable} lenis lenis-smooth`}>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

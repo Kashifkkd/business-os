@@ -280,17 +280,44 @@ export async function POST(
   // Leads --------------------------------------------------------------------
   {
     const demoLeads = getDemoLeadsForIndustry(tenant.industry);
+    const { data: leadStages } = await supabase
+      .from("lead_stages")
+      .select("id, name")
+      .eq("tenant_id", orgId)
+      .order("sort_order", { ascending: true });
+    const stageByName = new Map<string, string>();
+    (leadStages ?? []).forEach((s: { id: string; name: string }) => {
+      stageByName.set(s.name.toLowerCase().trim(), s.id);
+    });
+    const defaultStageId = (leadStages ?? [])[0]?.id;
+    if (!defaultStageId) {
+      return NextResponse.json(
+        apiError(API_ERROR_CODES.BAD_REQUEST, "No lead stages found. Configure Leads → Stages first."),
+        { status: 400 }
+      );
+    }
     const { count } = await supabase
       .from("leads")
       .select("id", { count: "exact", head: true })
       .eq("tenant_id", orgId);
     if ((count ?? 0) < demoLeads.length) {
-      const { error } = await supabase.from("leads").insert(
-        demoLeads.map((lead) => ({
+      const leadRows = demoLeads.map((lead) => {
+        const [first_name, ...rest] = (lead.name ?? "").trim().split(/\s+/);
+        const last_name = rest.join(" ") || null;
+        const stage_id = stageByName.get((lead.status ?? "new").toLowerCase()) ?? defaultStageId;
+        return {
           tenant_id: orgId,
-          ...lead,
-        }))
-      );
+          first_name: first_name || "Lead",
+          last_name: last_name,
+          email: lead.email?.trim() || null,
+          phone: lead.phone?.trim() || null,
+          company_id: null,
+          source: lead.source?.trim() || null,
+          stage_id,
+          notes: lead.notes?.trim() || null,
+        };
+      });
+      const { error } = await supabase.from("leads").insert(leadRows);
       if (error) {
         return NextResponse.json(
           apiError(API_ERROR_CODES.BAD_REQUEST, sanitizeErrorMessage(error.message, "Failed to seed leads.")),

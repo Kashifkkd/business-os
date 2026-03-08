@@ -20,13 +20,14 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useQueryClient } from "@tanstack/react-query";
-import { useLeadSources, useUpdateLeadSources } from "@/hooks/use-leads";
+import { useLeadStages, useUpdateLeadStages } from "@/hooks/use-leads";
 import { useOrganization } from "@/hooks/use-organization";
 import { useUser } from "@/hooks/use-user";
 import { queryKeys } from "@/hooks/use-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -52,21 +53,28 @@ import { EmptyState } from "@/components/empty-state";
 import { TableLoadingSkeleton } from "@/components/table-loading-skeleton";
 import { ShowingRange } from "@/components/showing-range";
 import { SearchBox } from "@/components/search-box";
-import { SourceChip } from "@/components/source-chip";
-import { CreatedByDisplay } from "@/components/created-by-display";
 import { DateDisplay } from "@/components/date-display";
+import { DisplayName } from "@/components/display-name";
 import {
-  DEFAULT_SOURCE_COLOR,
-  normalizeSourceColor,
-  SOURCE_COLOR_PALETTE,
-} from "@/lib/lead-sources";
-import type { LeadSourceItem } from "@/lib/lead-sources";
-import { Tag, Plus, Trash2, GripVertical, MoreVertical, RefreshCw, Loader2 } from "lucide-react";
+  DEFAULT_STAGE_COLOR,
+  normalizeStageColor,
+} from "@/lib/lead-stages";
+import { SOURCE_COLOR_PALETTE } from "@/lib/lead-sources";
+import type { LeadStageItem } from "@/lib/lead-stages";
+import { ListTree, Plus, Trash2, GripVertical, MoreVertical, RefreshCw, Loader2 } from "lucide-react";
 
-const CREATOR_YOU = { id: "", name: "You", email: null };
+function StageColorSwatch({ color }: { color: string }) {
+  return (
+    <span
+      className="inline-block h-4 w-4 shrink-0 rounded border border-border"
+      style={{ backgroundColor: color }}
+      aria-hidden
+    />
+  );
+}
 
-function SortableSourceRow({
-  source,
+function SortableStageRow({
+  stage,
   index,
   onRemove,
   isPending,
@@ -74,7 +82,7 @@ function SortableSourceRow({
   timeFormat,
   currentUserId,
 }: {
-  source: LeadSourceItem;
+  stage: LeadStageItem;
   index: number;
   onRemove: (index: number) => void;
   isPending: boolean;
@@ -82,7 +90,7 @@ function SortableSourceRow({
   timeFormat?: "12h" | "24h";
   currentUserId: string | null;
 }) {
-  const id = source.id ?? source.name;
+  const id = stage.id;
   const {
     attributes,
     listeners,
@@ -115,11 +123,19 @@ function SortableSourceRow({
         </button>
       </TableCell>
       <TableCell className="font-medium">
-        <SourceChip source={source.name} color={source.color} />
+        <div className="flex items-center gap-2">
+          <StageColorSwatch color={stage.color ?? DEFAULT_STAGE_COLOR} />
+          <span>{stage.name}</span>
+          {stage.is_default && (
+            <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+              Default
+            </span>
+          )}
+        </div>
       </TableCell>
-      <TableCell className="text-muted-foreground text-xs">
+      <TableCell className="text-muted-foreground text-xs w-[120px]">
         <DateDisplay
-          value={source.created_at}
+          value={stage.created_at}
           variant="datetimeWithAgo"
           layout="column"
           timeAgoWithinDays={7}
@@ -127,17 +143,16 @@ function SortableSourceRow({
           timeFormat={timeFormat}
         />
       </TableCell>
-      <TableCell className="text-muted-foreground text-xs">
-        <CreatedByDisplay
-          creator={source.created_by ?? CREATOR_YOU}
+      <TableCell className="text-muted-foreground w-[120px]">
+        <DisplayName
+          name={stage.created_by_name?.trim() || "—"}
           label={
-            currentUserId && source.created_by?.id === currentUserId
+            currentUserId && stage.created_by === currentUserId
               ? "You"
-              : !source.created_by
+              : !stage.created_by_name?.trim()
                 ? "You"
                 : undefined
           }
-          variant="full"
           size="sm"
         />
       </TableCell>
@@ -170,30 +185,32 @@ function SortableSourceRow({
   );
 }
 
-export default function LeadSourcesPage() {
+export default function LeadStagesPage() {
   const params = useParams();
   const orgId = params?.orgId as string;
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [dialogInput, setDialogInput] = useState("");
-  const [dialogColor, setDialogColor] = useState(DEFAULT_SOURCE_COLOR);
+  const [dialogName, setDialogName] = useState("");
+  const [dialogColor, setDialogColor] = useState(DEFAULT_STAGE_COLOR);
+  const [dialogIsDefault, setDialogIsDefault] = useState(false);
 
   const queryClient = useQueryClient();
   const { user } = useUser();
   const { organization } = useOrganization(orgId);
-  const { data, isLoading, refetch, isRefetching } = useLeadSources(orgId);
+  const { data, isLoading, refetch, isRefetching } = useLeadStages(orgId);
   const currentUserId = user?.id ?? null;
-  const updateSources = useUpdateLeadSources(orgId);
+  const updateStages = useUpdateLeadStages(orgId);
   const locale = organization?.locale ?? undefined;
   const timeFormat = organization?.time_format ?? undefined;
 
-  const allSources = data?.sources ?? [];
-  const sources = useMemo(() => {
+  const stages = data?.stages ?? [];
+  const key = queryKeys.leadStages(orgId);
+
+  const filteredStages = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return allSources;
-    return allSources.filter((s) => s.name.toLowerCase().includes(q));
-  }, [allSources, search]);
-  const key = queryKeys.leadSources(orgId);
+    if (!q) return stages;
+    return stages.filter((s) => s.name.toLowerCase().includes(q));
+  }, [stages, search]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -203,66 +220,78 @@ export default function LeadSourcesPage() {
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const oldIndex = allSources.findIndex((s) => (s.id ?? s.name) === active.id);
-    const newIndex = allSources.findIndex((s) => (s.id ?? s.name) === over.id);
+    const oldIndex = stages.findIndex((s) => s.id === active.id);
+    const newIndex = stages.findIndex((s) => s.id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
-    const reordered = arrayMove(allSources, oldIndex, newIndex);
-    const previous = [...allSources];
-    queryClient.setQueryData(key, { sources: reordered });
-    updateSources.mutate(reordered, {
-      onError: () => queryClient.setQueryData(key, { sources: previous }),
+    const reordered = arrayMove(stages, oldIndex, newIndex).map((s, i) => ({
+      ...s,
+      sort_order: i,
+    }));
+    const previous = [...stages];
+    queryClient.setQueryData(key, { stages: reordered });
+    updateStages.mutate(reordered, {
+      onError: () => queryClient.setQueryData(key, { stages: previous }),
     });
   };
 
-  const handleAdd = (sourceName: string, color: string) => {
-    const trimmed = sourceName.trim();
-    if (!trimmed || updateSources.isPending) return;
-    if (allSources.some((s) => s.name === trimmed)) return;
-    updateSources.mutate(
-      [...allSources, { name: trimmed, color: normalizeSourceColor(color) }],
-      {
-        onSuccess: () => {
-          setDialogInput("");
-          setDialogColor(DEFAULT_SOURCE_COLOR);
-          setAddDialogOpen(false);
-        },
-      }
-    );
+  const handleAdd = (name: string, color: string, isDefault: boolean) => {
+    const trimmed = name.trim();
+    if (!trimmed || updateStages.isPending) return;
+    if (stages.some((s) => s.name === trimmed)) return;
+    const newStage: LeadStageItem = {
+      name: trimmed,
+      color: normalizeStageColor(color),
+      sort_order: stages.length,
+      is_default: isDefault,
+    };
+    let next = [...stages.map((s) => ({ ...s })), newStage];
+    if (isDefault) {
+      next = next.map((s) => ({ ...s, is_default: s.name === trimmed }));
+    }
+    updateStages.mutate(next, {
+      onSuccess: () => {
+        setDialogName("");
+        setDialogColor(DEFAULT_STAGE_COLOR);
+        setDialogIsDefault(false);
+        setAddDialogOpen(false);
+      },
+    });
   };
 
   const handleAddFromDialog = () => {
-    handleAdd(dialogInput, dialogColor);
+    handleAdd(dialogName, dialogColor, dialogIsDefault);
   };
 
   const openAddDialog = () => {
-    setDialogInput("");
-    setDialogColor(DEFAULT_SOURCE_COLOR);
+    setDialogName("");
+    setDialogColor(DEFAULT_STAGE_COLOR);
+    setDialogIsDefault(false);
     setAddDialogOpen(true);
   };
 
   const handleRemove = (index: number) => {
-    if (updateSources.isPending) return;
-    const next = allSources.filter((_, i) => i !== index);
-    updateSources.mutate(next);
+    if (updateStages.isPending) return;
+    const next = stages.filter((_, i) => i !== index);
+    updateStages.mutate(next);
   };
 
   if (!orgId) return null;
 
-  const from = sources.length === 0 ? 0 : 1;
-  const to = sources.length;
-  const total = sources.length;
+  const from = filteredStages.length === 0 ? 0 : 1;
+  const to = filteredStages.length;
+  const total = filteredStages.length;
 
   return (
     <div className="container mx-auto p-4">
-      <div className="">
-        <h1 className="text-lg font-semibold">Lead sources</h1>
+      <div>
+        <h1 className="text-lg font-semibold">Lead stages</h1>
         <p className="text-muted-foreground text-sm">
-          Manage the list of lead source options. Drag to reorder.
+          Manage pipeline stages. Drag to reorder. New leads use the default stage.
         </p>
       </div>
 
-      {updateSources.isError && (
-        <p className="mb-2 text-sm text-destructive">{updateSources.error?.message}</p>
+      {updateStages.isError && (
+        <p className="mb-2 text-sm text-destructive">{updateStages.error?.message}</p>
       )}
 
       <div className="flex min-h-0 flex-1 flex-col gap-2">
@@ -271,8 +300,8 @@ export default function LeadSourcesPage() {
             from={from}
             to={to}
             total={total}
-            itemLabel="sources"
-            emptyLabel="No sources"
+            itemLabel="stages"
+            emptyLabel="No stages"
           />
           <div className="flex items-center gap-2">
             <Button
@@ -288,7 +317,7 @@ export default function LeadSourcesPage() {
             <SearchBox
               value={search}
               onChange={setSearch}
-              placeholder="Search sources..."
+              placeholder="Search stages..."
               className="w-44"
             />
             <Button type="button" size="sm" onClick={openAddDialog}>
@@ -301,16 +330,16 @@ export default function LeadSourcesPage() {
         <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Add lead source</DialogTitle>
+              <DialogTitle>Add stage</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-2">
               <div className="space-y-2">
-                <Label htmlFor="dialog-source-name">Source name</Label>
+                <Label htmlFor="dialog-stage-name">Stage name</Label>
                 <Input
-                  id="dialog-source-name"
-                  value={dialogInput}
-                  onChange={(e) => setDialogInput(e.target.value)}
-                  placeholder="e.g. Website, Referral, Manual"
+                  id="dialog-stage-name"
+                  value={dialogName}
+                  onChange={(e) => setDialogName(e.target.value)}
+                  placeholder="e.g. New, Qualified, Won"
                   onKeyDown={(e) =>
                     e.key === "Enter" && (e.preventDefault(), handleAddFromDialog())
                   }
@@ -319,40 +348,36 @@ export default function LeadSourcesPage() {
               </div>
               <div className="space-y-2">
                 <Label>Color</Label>
-                <div className="flex flex-wrap gap-2" role="group" aria-label="Source color">
+                <div className="flex flex-wrap gap-2" role="group" aria-label="Stage color">
                   {SOURCE_COLOR_PALETTE.map(({ value, label }) => (
                     <button
                       key={value}
                       type="button"
                       title={label}
                       aria-label={`${label} color`}
-                      aria-pressed={normalizeSourceColor(dialogColor) === normalizeSourceColor(value)}
+                      aria-pressed={normalizeStageColor(dialogColor) === normalizeStageColor(value)}
                       className="h-8 w-8 shrink-0 rounded-full border-2 transition-[transform,border-color] hover:scale-110 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                       style={{
                         backgroundColor: value,
                         borderColor:
-                          normalizeSourceColor(dialogColor) === normalizeSourceColor(value)
+                          normalizeStageColor(dialogColor) === normalizeStageColor(value)
                             ? "hsl(var(--foreground))"
                             : "transparent",
-                        boxShadow:
-                          normalizeSourceColor(dialogColor) === normalizeSourceColor(value)
-                            ? "0 0 0 1px hsl(var(--background))"
-                            : undefined,
                       }}
                       onClick={() => setDialogColor(value)}
                     />
                   ))}
                 </div>
                 <div className="flex items-center gap-2 pt-1">
-                  <Label htmlFor="dialog-source-custom-color" className="text-muted-foreground text-xs shrink-0">
+                  <Label htmlFor="dialog-stage-custom-color" className="text-muted-foreground text-xs shrink-0">
                     Custom
                   </Label>
                   <input
-                    id="dialog-source-custom-color"
+                    id="dialog-stage-custom-color"
                     type="color"
-                    value={/^#[0-9A-Fa-f]{6}$/.test(dialogColor) ? dialogColor : DEFAULT_SOURCE_COLOR}
+                    value={/^#[0-9A-Fa-f]{6}$/.test(dialogColor) ? dialogColor : DEFAULT_STAGE_COLOR}
                     onChange={(e) => setDialogColor(e.target.value)}
-                    className="h-8 w-10 cursor-pointer rounded border border-input bg-transparent p-0 focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                    className="h-8 w-10 cursor-pointer rounded border border-input bg-transparent p-0"
                     aria-label="Pick custom color"
                   />
                   <Input
@@ -362,41 +387,40 @@ export default function LeadSourcesPage() {
                     onChange={(e) => {
                       const raw = e.target.value.trim();
                       if (!raw) {
-                        setDialogColor(DEFAULT_SOURCE_COLOR);
+                        setDialogColor(DEFAULT_STAGE_COLOR);
                         return;
                       }
                       const hex = (raw.startsWith("#") ? raw.slice(1) : raw).slice(0, 6);
                       if (/^[0-9A-Fa-f]*$/.test(hex)) {
-                        setDialogColor(hex ? `#${hex}` : DEFAULT_SOURCE_COLOR);
+                        setDialogColor(hex ? `#${hex}` : DEFAULT_STAGE_COLOR);
                       }
                     }}
                     className="font-mono w-24 h-8 text-xs"
                     aria-label="Custom hex color"
                   />
                 </div>
-                <div className="space-y-1.5 pt-2 border-t border-border">
-                  <Label className="text-muted-foreground text-xs">Preview</Label>
-                  <SourceChip
-                    source={dialogInput.trim() || "Source name"}
-                    color={normalizeSourceColor(dialogColor)}
-                  />
-                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="dialog-stage-default"
+                  checked={dialogIsDefault}
+                  onCheckedChange={(c) => setDialogIsDefault(c === true)}
+                />
+                <Label htmlFor="dialog-stage-default" className="text-sm font-normal cursor-pointer">
+                  Set as default stage for new leads
+                </Label>
               </div>
             </div>
             <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setAddDialogOpen(false)}
-              >
+              <Button type="button" variant="outline" onClick={() => setAddDialogOpen(false)}>
                 Cancel
               </Button>
               <Button
                 type="button"
                 onClick={handleAddFromDialog}
-                disabled={!dialogInput.trim() || updateSources.isPending}
+                disabled={!dialogName.trim() || updateStages.isPending}
               >
-                {updateSources.isPending ? "Adding…" : "Add"}
+                {updateStages.isPending ? "Adding…" : "Add"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -404,17 +428,17 @@ export default function LeadSourcesPage() {
 
         {isLoading || isRefetching ? (
           <TableLoadingSkeleton rowCount={5} columnCount={5} compact />
-        ) : allSources.length === 0 ? (
+        ) : stages.length === 0 ? (
           <EmptyState
-            title="No sources yet"
-            description="Add source options like Website, Referral, or Manual using the Add button above."
-            icon={Tag}
+            title="No stages yet"
+            description="Add pipeline stages like New, Qualified, Won using the Add button above."
+            icon={ListTree}
           />
-        ) : sources.length === 0 ? (
+        ) : filteredStages.length === 0 ? (
           <EmptyState
-            title="No matching sources"
+            title="No matching stages"
             description="Try a different search term."
-            icon={Tag}
+            icon={ListTree}
           />
         ) : (
           <div className="relative flex min-h-[260px] max-h-[520px] flex-1 flex-col overflow-y-auto rounded-md border">
@@ -423,7 +447,7 @@ export default function LeadSourcesPage() {
                 <TableHeader className="sticky top-0 z-10 bg-muted/60 backdrop-blur">
                   <TableRow>
                     <TableHead className="w-10 px-3 text-xs" aria-label="Drag handle" />
-                    <TableHead className="px-3 text-xs">Source</TableHead>
+                    <TableHead className="px-3 text-xs">Stage</TableHead>
                     <TableHead className="w-[120px] px-3 text-xs">Created at</TableHead>
                     <TableHead className="w-[120px] px-3 text-xs">Created by</TableHead>
                     <TableHead className="w-[80px] px-3 text-right text-xs">Actions</TableHead>
@@ -431,18 +455,18 @@ export default function LeadSourcesPage() {
                 </TableHeader>
                 <TableBody>
                   <SortableContext
-                    items={sources.map((s) => s.id ?? s.name)}
+                    items={filteredStages.map((s) => s.id)}
                     strategy={verticalListSortingStrategy}
                   >
-                    {sources.map((source) => {
-                      const globalIndex = allSources.findIndex((s) => (s.id ?? s.name) === (source.id ?? source.name));
+                    {filteredStages.map((stage) => {
+                      const globalIndex = stages.findIndex((s) => s.id === stage.id);
                       return (
-                        <SortableSourceRow
-                          key={source.id ?? source.name}
-                          source={source}
+                        <SortableStageRow
+                          key={stage.id}
+                          stage={stage}
                           index={globalIndex}
                           onRemove={handleRemove}
-                          isPending={updateSources.isPending}
+                          isPending={updateStages.isPending}
                           locale={locale}
                           timeFormat={timeFormat}
                           currentUserId={currentUserId}

@@ -127,7 +127,7 @@ export function ProfileForm({ profile }: ProfileFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form onSubmit={handleSubmit} className="p-4">
       <Card>
         <CardHeader className="pb-3">
           <CardTitle>Profile</CardTitle>
@@ -146,7 +146,7 @@ export function ProfileForm({ profile }: ProfileFormProps) {
               onRemove={displayAvatarUrl ? handleRemoveAvatar : undefined}
               uploading={uploadingAvatar}
               removing={removingAvatar}
-              avatarSize="default"
+              avatarSize="lg"
               compact
             />
             <input

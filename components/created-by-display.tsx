@@ -13,8 +13,10 @@ export type Creator = {
 };
 
 type CreatedByDisplayProps = {
-  /** Creator from API (id, name, email, avatar_url). */
+  /** Creator from API (id, name, email, avatar_url). Avatar always uses creator name for initials. */
   creator: Creator | null | undefined;
+  /** When set, this is shown as the label instead of creator name (e.g. "You"). Avatar still uses creator. */
+  label?: string | null;
   /**
    * - full: avatar + name (default)
    * - compact: initial only (avatar circle, no name)
@@ -37,6 +39,7 @@ function creatorDisplayName(creator: Creator): string {
 
 export function CreatedByDisplay({
   creator,
+  label,
   variant = "full",
   size = "default",
   className,
@@ -45,8 +48,9 @@ export function CreatedByDisplay({
     return <span className={cn("text-muted-foreground", className)}>—</span>;
   }
 
-  const displayName = creatorDisplayName(creator);
+  const nameForAvatar = creatorDisplayName(creator);
   const initials = creatorInitials(creator);
+  const textToShow = label != null && label !== "" ? label : nameForAvatar;
   const avatarSize = size === "sm" ? "sm" : size === "lg" ? "lg" : "default";
 
   if (variant === "nameOnly") {
@@ -59,16 +63,16 @@ export function CreatedByDisplay({
           className
         )}
       >
-        {displayName}
+        {textToShow}
       </span>
     );
   }
 
   if (variant === "compact") {
     return (
-      <Avatar size={avatarSize} className={cn("shrink-0", className)} title={displayName}>
+      <Avatar size={avatarSize} className={cn("shrink-0", className)} title={textToShow}>
         {creator.avatar_url && <AvatarImage src={creator.avatar_url} alt="" />}
-        <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+        <AvatarFallback className="text-[10px]">{initials}</AvatarFallback>
       </Avatar>
     );
   }
@@ -83,7 +87,7 @@ export function CreatedByDisplay({
     >
       <Avatar size={avatarSize} className="shrink-0">
         {creator.avatar_url && <AvatarImage src={creator.avatar_url} alt="" />}
-        <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+        <AvatarFallback className="text-[10px]">{initials}</AvatarFallback>
       </Avatar>
       <span
         className={cn(
@@ -92,7 +96,7 @@ export function CreatedByDisplay({
           size === "lg" && "text-base"
         )}
       >
-        {displayName}
+        {textToShow}
       </span>
     </div>
   );

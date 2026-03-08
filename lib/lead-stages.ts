@@ -3,6 +3,9 @@ import type { LeadStage } from "@/lib/supabase/types";
 export type LeadStageItem = Pick<LeadStage, "id" | "name" | "color" | "sort_order" | "is_default"> & {
   created_at?: string;
   updated_at?: string;
+  created_by?: string | null;
+  /** Resolved from profiles for display */
+  created_by_name?: string | null;
 };
 
 export const DEFAULT_STAGE_COLOR = "#64748b";

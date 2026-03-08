@@ -18,7 +18,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,13 +41,29 @@ import { EmailDisplay } from "@/components/email-display";
 import { PhoneDisplay } from "@/components/phone-display";
 import { DateDisplay } from "@/components/date-display";
 import { DisplayName } from "@/components/display-name";
+import { LeadAssigneesCell } from "@/components/lead-assignees-cell";
+import { StageChip } from "@/components/stage-chip";
 import { getLeadDisplayName } from "@/lib/display-name";
 import type { Lead } from "@/lib/supabase/types";
+import { cn } from "@/lib/utils";
 import type { GetLeadsResult } from "@/hooks/use-leads";
-import { UserPlus, Filter, Pencil, Trash2, X, RefreshCw, Loader2, MoreVertical } from "lucide-react";
+import { UserPlus, Filter, Pencil, Trash2, X, RefreshCw, Loader2, MoreVertical, Eye, Users, ArrowRightLeft } from "lucide-react";
 import { isArrayWithValues } from "@/lib/is-array-with-values";
 
 const columnHelper = createColumnHelper<Lead>();
+
+/**
+ * Label for "Created by" display: "You" when current user is creator, "Owner" when no creator, else undefined (show real name).
+ */
+function getCreatedByDisplayLabel(
+  createdBy: string | null | undefined,
+  createdByName: string | null | undefined,
+  currentUserId: string | null | undefined
+): string | undefined {
+  if (currentUserId && createdBy === currentUserId) return "You";
+  if (!createdBy || !createdByName?.trim()) return "Owner";
+  return undefined;
+}
 
 type LeadsTableProps = {
   orgId: string;
@@ -81,11 +96,21 @@ type LeadsTableProps = {
   onFilterClick?: () => void;
   /** Map of source name -> hex color for SourceChip display. */
   sourceColors?: Record<string, string>;
+  /** Map of stage id -> hex color for stage chip display. */
+  stageColors?: Record<string, string>;
   /** Locale and time format for Created at column */
   locale?: string;
   timeFormat?: "12h" | "24h";
   onRefresh?: () => void;
   isRefetching?: boolean;
+  /** When set, assignees with this user_id are shown as "You" in Assigned to. */
+  currentUserId?: string | null;
+  /** When set and lead has no assignees, assign icon is shown; called on assign click. */
+  onAssignClick?: (lead: Lead) => void;
+  /** Called from Actions → Edit team members. */
+  onEditAssignees?: (lead: Lead) => void;
+  /** Called from Actions → Change stage. */
+  onChangeStage?: (lead: Lead) => void;
 };
 
 function SortableHeader({
@@ -137,10 +162,15 @@ export function LeadsTable({
   onSearchChange,
   onFilterClick,
   sourceColors,
+  stageColors,
   locale,
   timeFormat,
   onRefresh,
   isRefetching = false,
+  currentUserId = null,
+  onAssignClick,
+  onEditAssignees,
+  onChangeStage,
 }: LeadsTableProps) {
   const pathname = usePathname();
   const { items, page, pageSize, total } = data;
@@ -248,25 +278,48 @@ export function LeadsTable({
             onSortChange={onSortChange}
           />
         ),
-        cell: ({ row }) => {
-          const name = row.original.stage_name ?? row.original.stage_id ?? "—";
-          return (
-            <Badge variant="secondary" className="text-[10px] font-normal">
-              {name}
-            </Badge>
-          );
-        },
+        cell: ({ row }) => (
+          <StageChip
+            name={row.original.stage_name ?? row.original.stage_id ?? undefined}
+            color={row.original.stage_id ? stageColors?.[row.original.stage_id] : undefined}
+          />
+        ),
       }),
       columnHelper.display({
         id: "assignees",
         header: "Assigned to",
         cell: ({ row }) => {
-          const assignees = row.original.assignees ?? [];
-          const names = assignees.map((a) => a.name || a.email || a.user_id).filter(Boolean);
+          const lead = row.original;
+          const assignees = lead.assignees ?? [];
+          const canAssign = assignees.length === 0 && onAssignClick;
           return (
-            <span className="text-muted-foreground text-xs truncate max-w-[120px] block" title={names.join(", ")}>
-              {names.length ? names.join(", ") : "—"}
-            </span>
+            <div className="flex items-center gap-1.5 min-w-0">
+              {assignees.length > 0 ? (
+                <LeadAssigneesCell
+                  assignees={assignees}
+                  currentUserId={currentUserId}
+                />
+              ) : (
+                <>
+                  <span className="text-muted-foreground text-xs">—</span>
+                  {canAssign && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 shrink-0 text-muted-foreground hover:text-foreground"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAssignClick(lead);
+                      }}
+                      aria-label="Assign team members"
+                    >
+                      <UserPlus className="size-3.5" />
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
           );
         },
       }),
@@ -275,7 +328,12 @@ export function LeadsTable({
         header: "Created by",
         cell: ({ row }) => (
           <DisplayName
-            name={row.original.created_by_name ?? undefined}
+            name={row.original.created_by_name?.trim() || "—"}
+            label={getCreatedByDisplayLabel(
+              row.original.created_by,
+              row.original.created_by_name,
+              currentUserId
+            )}
             size="sm"
           />
         ),
@@ -303,7 +361,7 @@ export function LeadsTable({
       }),
       columnHelper.display({
         id: "actions",
-        header: "",
+        header: () => "Actions",
         cell: ({ row }) => (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -319,10 +377,28 @@ export function LeadsTable({
             <DropdownMenuContent align="end">
               <DropdownMenuItem asChild>
                 <Link href={`/${orgId}/leads/${row.original.id}`}>
-                  <Pencil className="size-3.5" />
-                  View / Edit
+                  <Eye className="size-3.5" />
+                  View
                 </Link>
               </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href={`/${orgId}/leads/${row.original.id}`}>
+                  <Pencil className="size-3.5" />
+                  Edit
+                </Link>
+              </DropdownMenuItem>
+              {onEditAssignees && (
+                <DropdownMenuItem onClick={() => onEditAssignees(row.original)}>
+                  <Users className="size-3.5" />
+                  Edit team members
+                </DropdownMenuItem>
+              )}
+              {onChangeStage && (
+                <DropdownMenuItem onClick={() => onChangeStage(row.original)}>
+                  <ArrowRightLeft className="size-3.5" />
+                  Change stage
+                </DropdownMenuItem>
+              )}
               {onDelete && (
                 <DropdownMenuItem
                   variant="destructive"
@@ -348,6 +424,14 @@ export function LeadsTable({
       items.length,
       locale,
       timeFormat,
+      sourceColors,
+      stageColors,
+      currentUserId,
+      onAssignClick,
+      onEditAssignees,
+      onChangeStage,
+      toggleSelectAll,
+      toggleSelection,
     ]
   );
 
@@ -483,7 +567,11 @@ export function LeadsTable({
                     {headerGroup.headers.map((header) => (
                       <TableHead
                         key={header.id}
-                        className="h-8 px-3 text-xs"
+                        className={cn(
+                          "h-8 px-3 text-xs",
+                          header.column.id === "actions" &&
+                            "sticky right-0 z-10 bg-muted/60 backdrop-blur shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.05)]"
+                        )}
                       >
                         {flexRender(
                           header.column.columnDef.header,
@@ -501,7 +589,13 @@ export function LeadsTable({
                     className="[&_td]:py-1.5 [&_td]:px-3 [&_td]:text-xs"
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
+                      <TableCell
+                        key={cell.id}
+                        className={cn(
+                          cell.column.id === "actions" &&
+                            "sticky right-0 z-10 bg-background shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.05)]"
+                        )}
+                      >
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext()

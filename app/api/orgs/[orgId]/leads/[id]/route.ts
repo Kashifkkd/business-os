@@ -41,13 +41,24 @@ export async function GET(
     return NextResponse.json(apiError(API_ERROR_CODES.NOT_FOUND, "Lead not found"), { status: 404 });
   }
 
-  const lead = row as Lead & { company_id?: string | null; created_by?: string | null; stage_id?: string };
-  const [stageRes, companyRes, assigneesRes] = await Promise.all([
+  const lead = row as Lead & { company_id?: string | null; created_by?: string | null; stage_id?: string; metadata?: Record<string, unknown> };
+  const meta = (lead.metadata && typeof lead.metadata === "object" && !Array.isArray(lead.metadata) ? lead.metadata : {}) as Record<string, unknown>;
+  const jobTitleId = typeof meta.job_title_id === "string" ? meta.job_title_id.trim() : "";
+  const jobTitleName = typeof meta.job_title === "string" ? String(meta.job_title).trim() : "";
+  const [stageRes, companyRes, jobTitleRes, sourceRes, assigneesRes] = await Promise.all([
     lead.stage_id
       ? supabase.from("lead_stages").select("id, name").eq("id", lead.stage_id).single()
       : Promise.resolve({ data: null }),
     lead.company_id
       ? supabase.from("companies").select("id, name").eq("id", lead.company_id).single()
+      : Promise.resolve({ data: null }),
+    jobTitleId
+      ? supabase.from("job_titles").select("id, name").eq("id", jobTitleId).eq("tenant_id", orgId).maybeSingle()
+      : jobTitleName
+        ? supabase.from("job_titles").select("id, name").eq("tenant_id", orgId).eq("name", jobTitleName).maybeSingle()
+        : Promise.resolve({ data: null }),
+    lead.source
+      ? supabase.from("lead_sources").select("id, name").eq("tenant_id", orgId).eq("name", lead.source).maybeSingle()
       : Promise.resolve({ data: null }),
     supabase.from("lead_assignees").select("user_id").eq("lead_id", id),
   ]);
@@ -76,10 +87,22 @@ export async function GET(
       }));
   }
 
+  const metadataClean = { ...meta };
+  delete metadataClean.job_title;
+  delete metadataClean.job_title_id;
+  const resolvedJobTitle = jobTitleRes.data
+    ? { id: jobTitleRes.data.id, name: jobTitleRes.data.name ?? "" }
+    : null;
+
   const result: Lead = {
     ...lead,
+    source_id: sourceRes.data?.id ?? null,
+    metadata: Object.keys(metadataClean).length > 0 ? metadataClean : undefined,
+    stage: stageRes.data ? { id: stageRes.data.id, name: stageRes.data.name } : null,
     stage_name: stageRes.data?.name ?? null,
+    company: companyRes.data ? { id: companyRes.data.id, name: companyRes.data.name } : null,
     company_name: companyRes.data?.name ?? null,
+    job_title: resolvedJobTitle,
     created_by_name: created_by_name ?? undefined,
     assignee_ids: assigneeIds,
     assignees,
@@ -93,8 +116,9 @@ export type UpdateLeadBody = Partial<{
   email: string | null;
   phone: string | null;
   company_id: string | null;
-  source: string | null;
+  source_id: string | null;
   stage_id: string;
+  job_title_id: string | null;
   notes: string | null;
   metadata: Record<string, unknown>;
   assignee_ids: string[];
@@ -160,8 +184,19 @@ export async function PATCH(
   if (body.company_id !== undefined) {
     payload.company_id = typeof body.company_id === "string" && body.company_id.trim() ? body.company_id.trim() : null;
   }
-  if (body.source !== undefined) {
-    payload.source = typeof body.source === "string" && body.source.trim() ? body.source.trim() : null;
+  if (body.source_id !== undefined) {
+    const source_id = typeof body.source_id === "string" && body.source_id.trim() ? body.source_id.trim() : null;
+    if (source_id) {
+      const { data: sourceRow } = await supabase
+        .from("lead_sources")
+        .select("name")
+        .eq("id", source_id)
+        .eq("tenant_id", orgId)
+        .maybeSingle();
+      payload.source = sourceRow?.name ?? null;
+    } else {
+      payload.source = null;
+    }
   }
   if (typeof body.stage_id === "string" && body.stage_id.trim()) {
     payload.stage_id = body.stage_id.trim();
@@ -169,8 +204,22 @@ export async function PATCH(
   if (body.notes !== undefined) {
     payload.notes = typeof body.notes === "string" && body.notes.trim() ? body.notes.trim() : null;
   }
+  if (body.job_title_id !== undefined) {
+    const existingMeta = (payload.metadata ?? existing?.metadata) as Record<string, unknown> | undefined;
+    const metadata = existingMeta && typeof existingMeta === "object" && !Array.isArray(existingMeta) ? { ...existingMeta } : {};
+    delete metadata.job_title;
+    const job_title_id = typeof body.job_title_id === "string" && body.job_title_id.trim() ? body.job_title_id.trim() : null;
+    if (job_title_id) {
+      metadata.job_title_id = job_title_id;
+    } else {
+      delete metadata.job_title_id;
+    }
+    payload.metadata = metadata;
+  }
   if (body.metadata !== undefined && typeof body.metadata === "object" && !Array.isArray(body.metadata)) {
-    payload.metadata = body.metadata;
+    const merged = { ...(payload.metadata as Record<string, unknown> ?? {}), ...body.metadata };
+    delete merged.job_title;
+    payload.metadata = merged;
   }
 
   const assignee_ids = body.assignee_ids !== undefined && Array.isArray(body.assignee_ids)

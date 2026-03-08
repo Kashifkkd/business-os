@@ -3,70 +3,70 @@
 import { useQuery, useMutation, useQueryClient, type UseMutationOptions } from "@tanstack/react-query";
 import { queryKeys } from "@/hooks/use-api";
 import { fetcherData } from "@/hooks/use-api";
-import type { Company } from "@/lib/supabase/types";
+import type { JobTitle } from "@/lib/supabase/types";
 
 const API = "/api";
 
-export function useCompanies(
+export function useJobTitles(
   orgId: string | undefined,
   options?: { enabled?: boolean }
 ) {
   return useQuery({
-    queryKey: queryKeys.companies(orgId ?? ""),
+    queryKey: queryKeys.jobTitles(orgId ?? ""),
     queryFn: () =>
-      orgId ? fetcherData<Company[]>(`${API}/orgs/${orgId}/companies`) : Promise.resolve([]),
+      orgId ? fetcherData<JobTitle[]>(`${API}/orgs/${orgId}/job-titles`) : Promise.resolve([]),
     enabled: !!orgId && (options?.enabled !== false),
   });
 }
 
-export function useCreateCompany(
+export function useCreateJobTitle(
   orgId: string,
-  options?: UseMutationOptions<Company, Error, { name: string }>
+  options?: UseMutationOptions<JobTitle, Error, { name: string }>
 ) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: { name: string }) =>
-      fetcherData<Company>(`${API}/orgs/${orgId}/companies`, {
+      fetcherData<JobTitle>(`${API}/orgs/${orgId}/job-titles`, {
         method: "POST",
         body: JSON.stringify(data),
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.companies(orgId) });
+      qc.invalidateQueries({ queryKey: queryKeys.jobTitles(orgId) });
     },
     ...options,
   });
 }
 
-export function useUpdateCompany(
+export function useUpdateJobTitle(
   orgId: string,
-  options?: UseMutationOptions<Company, Error, { id: string; name: string }>
+  options?: UseMutationOptions<JobTitle, Error, { id: string; name: string }>
 ) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, name }: { id: string; name: string }) =>
-      fetcherData<Company>(`${API}/orgs/${orgId}/companies/${id}`, {
+      fetcherData<JobTitle>(`${API}/orgs/${orgId}/job-titles/${id}`, {
         method: "PATCH",
         body: JSON.stringify({ name }),
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.companies(orgId) });
+      qc.invalidateQueries({ queryKey: queryKeys.jobTitles(orgId) });
     },
     ...options,
   });
 }
 
-export function useDeleteCompany(
+export function useDeleteJobTitle(
   orgId: string,
   options?: UseMutationOptions<{ deleted: boolean }, Error, string>
 ) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      fetcherData<{ deleted: boolean }>(`${API}/orgs/${orgId}/companies/${id}`, {
+      fetcherData<{ deleted: boolean }>(`${API}/orgs/${orgId}/job-titles/${id}`, {
         method: "DELETE",
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.companies(orgId) });
+      qc.invalidateQueries({ queryKey: queryKeys.jobTitles(orgId) });
     },
     ...options,
   });

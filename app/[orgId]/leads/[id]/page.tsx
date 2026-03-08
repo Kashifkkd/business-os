@@ -10,6 +10,7 @@ import {
   useLeadSources,
   useLeadStages,
 } from "@/hooks/use-leads";
+import { useUser } from "@/hooks/use-user";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/hooks/use-api";
 import { sourceColorMap } from "@/lib/lead-sources";
@@ -28,7 +29,9 @@ export default function LeadDetailPage() {
   const leadId = params?.id as string;
 
   const queryClient = useQueryClient();
+  const { user } = useUser();
   const { data: lead, isLoading } = useLead(orgId, leadId);
+  const currentUserId = user?.id ?? null;
   const { data: sourcesData } = useLeadSources(orgId);
   const { data: stagesData } = useLeadStages(orgId);
   const sourceColors = sourceColorMap(sourcesData?.sources ?? []);
@@ -114,6 +117,7 @@ export default function LeadDetailPage() {
               lead={lead}
               sourceColors={sourceColors}
               onCopyEmail={copyEmail}
+              currentUserId={currentUserId}
             />
           </aside>
 

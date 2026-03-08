@@ -94,6 +94,7 @@ export const queryKeys = {
   leadActivities: (orgId: string, leadId: string) => ["orgs", orgId, "leads", leadId, "activities"] as const,
   leadSources: (orgId: string) => ["orgs", orgId, "leads", "sources"] as const,
   leadStages: (orgId: string) => ["orgs", orgId, "leads", "stages"] as const,
+  jobTitles: (orgId: string) => ["orgs", orgId, "job-titles"] as const,
   leadStats: (orgId: string) => ["orgs", orgId, "leads", "stats"] as const,
   logs: (orgId: string, params: LogsQueryKeyParams) =>
     [

@@ -101,13 +101,15 @@ export async function GET(
   const companyIds = [...new Set(list.map((r) => r.company_id).filter(Boolean))] as string[];
   const creatorIds = [...new Set(list.map((r) => r.created_by).filter(Boolean))] as string[];
 
-  const [stagesRes, companiesRes, assigneesRes] = await Promise.all([
+  const [stagesRes, companiesRes, jobTitlesRes, sourcesRes, assigneesRes] = await Promise.all([
     stageIds.length > 0
       ? supabase.from("lead_stages").select("id, name").in("id", stageIds)
       : Promise.resolve({ data: [] }),
     companyIds.length > 0
       ? supabase.from("companies").select("id, name").in("id", companyIds)
       : Promise.resolve({ data: [] }),
+    supabase.from("job_titles").select("id, name").eq("tenant_id", orgId),
+    supabase.from("lead_sources").select("id, name").eq("tenant_id", orgId),
     leadIds.length > 0
       ? supabase.from("lead_assignees").select("lead_id, user_id").in("lead_id", leadIds)
       : Promise.resolve({ data: [] }),
@@ -120,13 +122,25 @@ export async function GET(
       ? await supabase.from("profiles").select("id, first_name, last_name, email").in("id", profileIds)
       : { data: [] };
 
-  const stageNames: Record<string, string> = {};
+  const stageById: Record<string, { id: string; name: string }> = {};
   (stagesRes.data ?? []).forEach((s: { id: string; name: string }) => {
-    stageNames[s.id] = s.name;
+    stageById[s.id] = { id: s.id, name: s.name };
   });
-  const companyNames: Record<string, string> = {};
+  const companyById: Record<string, { id: string; name: string }> = {};
   (companiesRes.data ?? []).forEach((c: { id: string; name: string }) => {
-    companyNames[c.id] = c.name;
+    companyById[c.id] = { id: c.id, name: c.name };
+  });
+  const jobTitleByName: Record<string, { id: string; name: string }> = {};
+  const jobTitleById: Record<string, { id: string; name: string }> = {};
+  (jobTitlesRes.data ?? []).forEach((j: { id: string; name: string }) => {
+    const name = String(j.name ?? "").trim();
+    if (name) jobTitleByName[name] = { id: j.id, name };
+    jobTitleById[j.id] = { id: j.id, name: j.name ?? "" };
+  });
+  const sourceNameToId: Record<string, string> = {};
+  (sourcesRes.data ?? []).forEach((s: { id: string; name: string }) => {
+    const name = String(s.name ?? "").trim();
+    if (name) sourceNameToId[name] = s.id;
   });
   const assigneesByLead: Record<string, string[]> = {};
   (assigneesRes.data ?? []).forEach((a: { lead_id: string; user_id: string }) => {
@@ -148,17 +162,36 @@ export async function GET(
     creatorNames[id] = p?.name ?? id;
   });
 
-  const items: Lead[] = list.map((r) => ({
-    ...r,
-    stage_name: r.stage_id ? stageNames[r.stage_id] ?? null : null,
-    company_name: r.company_id ? companyNames[r.company_id] ?? null : null,
-    created_by_name: r.created_by ? creatorNames[r.created_by] ?? null : null,
-    assignee_ids: assigneesByLead[r.id] ?? [],
-    assignees: (assigneesByLead[r.id] ?? []).map((uid) => {
-      const p = profileMap.get(uid);
-      return { user_id: uid, name: p?.name ?? null, email: p?.email ?? null };
-    }),
-  }));
+  const items: Lead[] = list.map((r) => {
+    const meta = (r.metadata && typeof r.metadata === "object" && !Array.isArray(r.metadata) ? r.metadata : {}) as Record<string, unknown>;
+    const jobTitleId = typeof meta.job_title_id === "string" ? meta.job_title_id.trim() : "";
+    const jobTitleName = typeof meta.job_title === "string" ? meta.job_title.trim() : "";
+    const metadataClean = { ...meta };
+    delete metadataClean.job_title;
+    delete metadataClean.job_title_id;
+    const resolvedJobTitle =
+      jobTitleId && jobTitleById[jobTitleId]
+        ? jobTitleById[jobTitleId]
+        : jobTitleName && jobTitleByName[jobTitleName]
+          ? jobTitleByName[jobTitleName]
+          : null;
+    return {
+      ...r,
+      source_id: r.source ? sourceNameToId[r.source] ?? null : null,
+      metadata: Object.keys(metadataClean).length > 0 ? metadataClean : undefined,
+      stage: r.stage_id ? stageById[r.stage_id] ?? null : null,
+      stage_name: r.stage_id ? stageById[r.stage_id]?.name ?? null : null,
+      company: r.company_id ? companyById[r.company_id] ?? null : null,
+      company_name: r.company_id ? companyById[r.company_id]?.name ?? null : null,
+      job_title: resolvedJobTitle,
+      created_by_name: r.created_by ? creatorNames[r.created_by] ?? null : null,
+      assignee_ids: assigneesByLead[r.id] ?? [],
+      assignees: (assigneesByLead[r.id] ?? []).map((uid) => {
+        const p = profileMap.get(uid);
+        return { user_id: uid, name: p?.name ?? null, email: p?.email ?? null };
+      }),
+    };
+  });
   const total = count ?? 0;
   return NextResponse.json(apiSuccess<GetLeadsResult>({ items, total, page, pageSize }, total));
 }
@@ -169,8 +202,9 @@ export type CreateLeadBody = {
   email?: string | null;
   phone?: string | null;
   company_id?: string | null;
-  source?: string | null;
+  source_id?: string | null;
   stage_id?: string | null;
+  job_title_id?: string | null;
   notes?: string | null;
   metadata?: Record<string, unknown>;
   assignee_ids?: string[];
@@ -211,15 +245,33 @@ export async function POST(
   }
   const last_name = typeof body.last_name === "string" ? body.last_name.trim() : "";
 
-  const metadata =
-    body.metadata && typeof body.metadata === "object" && !Array.isArray(body.metadata)
-      ? body.metadata
-      : {};
   const company_id =
     typeof body.company_id === "string" && body.company_id.trim() ? body.company_id.trim() : null;
   const assignee_ids = Array.isArray(body.assignee_ids)
     ? (body.assignee_ids as string[]).filter((id) => typeof id === "string" && id.trim())
     : [];
+
+  let source: string | null = null;
+  const source_id = typeof body.source_id === "string" && body.source_id.trim() ? body.source_id.trim() : null;
+  if (source_id) {
+    const { data: sourceRow } = await supabase
+      .from("lead_sources")
+      .select("name")
+      .eq("id", source_id)
+      .eq("tenant_id", orgId)
+      .maybeSingle();
+    source = sourceRow?.name ?? null;
+  }
+
+  const job_title_id = typeof body.job_title_id === "string" && body.job_title_id.trim() ? body.job_title_id.trim() : null;
+  const metadata: Record<string, unknown> =
+    body.metadata && typeof body.metadata === "object" && !Array.isArray(body.metadata)
+      ? { ...body.metadata }
+      : {};
+  delete metadata.job_title;
+  if (job_title_id) {
+    metadata.job_title_id = job_title_id;
+  }
 
   let stage_id: string | null =
     typeof body.stage_id === "string" && body.stage_id.trim() ? body.stage_id.trim() : null;
@@ -257,7 +309,7 @@ export async function POST(
     email: typeof body.email === "string" && body.email.trim() ? body.email.trim() : null,
     phone: typeof body.phone === "string" && body.phone.trim() ? body.phone.trim() : null,
     company_id: company_id || null,
-    source: typeof body.source === "string" && body.source.trim() ? body.source.trim() : null,
+    source,
     stage_id,
     notes: typeof body.notes === "string" && body.notes.trim() ? body.notes.trim() : null,
     metadata: Object.keys(metadata).length > 0 ? metadata : {},

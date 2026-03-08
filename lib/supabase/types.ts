@@ -447,6 +447,7 @@ export interface LeadStage {
   is_default: boolean;
   created_at: string;
   updated_at: string;
+  created_by?: string | null;
 }
 
 /** Company (tenant-scoped); referenced by leads. */
@@ -456,7 +457,35 @@ export interface Company {
   name: string;
   created_at: string;
   updated_at: string;
+  created_by?: string | null;
+  /** Resolved from profiles for display */
+  created_by_name?: string | null;
+  /** Number of leads assigned to this company */
+  lead_count?: number;
 }
+
+/** Job title (tenant-scoped); used as option list for lead metadata.job_title. */
+export interface JobTitle {
+  id: string;
+  tenant_id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  created_by?: string | null;
+  /** Resolved from profiles for display */
+  created_by_name?: string | null;
+  /** Number of leads with this job title (metadata.job_title) */
+  lead_count?: number;
+}
+
+/** Nested stage on lead (API response). */
+export type LeadStageRef = { id: string; name: string };
+
+/** Nested company on lead (API response). */
+export type LeadCompanyRef = { id: string; name: string };
+
+/** Nested job title on lead (API response). id is null when lead has job_title text not in job_titles list. */
+export type LeadJobTitleRef = { id: string | null; name: string };
 
 export interface Lead {
   id: string;
@@ -468,12 +497,20 @@ export interface Lead {
   company_id: string | null;
   /** Resolved from companies.name for display */
   company_name?: string | null;
+  /** Nested company (API response). Prefer over company_id/company_name. */
+  company?: LeadCompanyRef | null;
   source: string | null;
+  /** Source FK (API response); used when creating/updating by id. */
+  source_id?: string | null;
   stage_id: string;
   /** Resolved from lead_stages.name for display */
   stage_name?: string | null;
+  /** Nested stage (API response). Prefer over stage_id/stage_name. */
+  stage?: LeadStageRef | null;
   notes: string | null;
   metadata?: Record<string, unknown>;
+  /** Job title (API response). Moved from metadata.job_title. id null if not in job_titles list. */
+  job_title?: LeadJobTitleRef | null;
   created_at: string;
   updated_at: string;
   created_by?: string | null;

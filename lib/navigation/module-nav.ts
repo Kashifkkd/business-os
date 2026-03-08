@@ -29,6 +29,7 @@ import {
   Phone,
   Video,
   ScrollText,
+  Building2,
 } from "lucide-react";
 
 export interface SubNavItem {
@@ -72,14 +73,20 @@ export function getLeadsModuleNav(basePath: string): ModuleNavConfig {
       leads,
       `${leads}/new`,
       `${leads}/pipeline`,
+      `${leads}/stages`,
       `${leads}/sources`,
+      `${leads}/companies`,
+      `${leads}/job-titles`,
       `${leads}/insights`,
       `${leads}/import`,
     ],
     items: [
       { href: leads, label: "All leads", icon: ListFilter },
       { href: `${leads}/pipeline`, label: "Pipeline", icon: LayoutGrid },
+      { href: `${leads}/stages`, label: "Stages", icon: ListTree },
       { href: `${leads}/sources`, label: "Sources", icon: Tag },
+      { href: `${leads}/companies`, label: "Companies", icon: Building2 },
+      { href: `${leads}/job-titles`, label: "Job titles", icon: ScrollText },
       { href: `${leads}/insights`, label: "Insights", icon: BarChart3 },
     ],
   };

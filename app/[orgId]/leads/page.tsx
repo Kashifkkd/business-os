@@ -2,8 +2,10 @@
 
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useParams, useSearchParams, useRouter, usePathname } from "next/navigation";
-import { useLeads, useDeleteLead, useBulkUpdateLeadsStage, useBulkDeleteLeads, useLeadSources, useLeadStages } from "@/hooks/use-leads";
+import { useLeads, useDeleteLead, useBulkUpdateLeadsStage, useBulkDeleteLeads, useLeadSources, useLeadStages, useUpdateLeadById } from "@/hooks/use-leads";
 import { useOrganization } from "@/hooks/use-organization";
+import { getPersonDisplayName } from "@/lib/display-name";
+import { useUser } from "@/hooks/use-user";
 import { sourceColorMap } from "@/lib/lead-sources";
 import type { GetLeadsResult } from "@/hooks/use-leads";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -17,9 +19,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -80,6 +84,9 @@ export default function LeadsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
+  const [assignDialogLead, setAssignDialogLead] = useState<Lead | null>(null);
+  const [assignDialogSelectedIds, setAssignDialogSelectedIds] = useState<string[]>([]);
+  const [stageDialogLead, setStageDialogLead] = useState<Lead | null>(null);
 
   useEffect(() => {
     setSearchInput(searchFromUrl);
@@ -180,11 +187,29 @@ export default function LeadsPage() {
     [setParams]
   );
 
-  const { organization } = useOrganization(orgId);
+  const { user } = useUser();
+  const { organization, orgMembers = [] } = useOrganization(orgId);
   const { data: sourcesData } = useLeadSources(orgId);
+  const currentUserId = user?.id ?? null;
   const { data: stagesData } = useLeadStages(orgId);
+  const updateLeadById = useUpdateLeadById(orgId);
+  const memberOptions = useMemo(
+    () =>
+      orgMembers.map((m) => ({
+        value: m.user_id,
+        label: getPersonDisplayName({ first_name: m.first_name, last_name: m.last_name, email: m.email }) ?? m.email ?? m.user_id,
+      })),
+    [orgMembers]
+  );
   const sourceColors = sourceColorMap(sourcesData?.sources ?? []);
   const stageOptions = stagesData?.stages ?? [];
+  const stageColors = useMemo(() => {
+    const map: Record<string, string> = {};
+    (stagesData?.stages ?? []).forEach((s) => {
+      if (s.id && s.color) map[s.id] = s.color;
+    });
+    return map;
+  }, [stagesData?.stages]);
 
   const { data, isLoading, isRefetching, refetch } = useLeads(
     orgId,
@@ -205,6 +230,34 @@ export default function LeadsPage() {
   const deleteLead = useDeleteLead(orgId);
   const bulkUpdateStage = useBulkUpdateLeadsStage(orgId);
   const bulkDelete = useBulkDeleteLeads(orgId);
+
+  const openAssignDialog = useCallback((lead: Lead) => {
+    setAssignDialogLead(lead);
+    setAssignDialogSelectedIds(lead.assignee_ids ?? lead.assignees?.map((a) => a.user_id) ?? []);
+  }, []);
+
+  const closeAssignDialog = useCallback(() => {
+    setAssignDialogLead(null);
+  }, []);
+
+  const handleAssignSave = useCallback(() => {
+    if (!assignDialogLead) return;
+    updateLeadById.mutate(
+      { leadId: assignDialogLead.id, data: { assignee_ids: assignDialogSelectedIds } },
+      { onSuccess: closeAssignDialog }
+    );
+  }, [assignDialogLead, assignDialogSelectedIds, updateLeadById, closeAssignDialog]);
+
+  const handleStageChange = useCallback(
+    (stage_id: string) => {
+      if (!stageDialogLead || !stage_id) return;
+      updateLeadById.mutate(
+        { leadId: stageDialogLead.id, data: { stage_id } },
+        { onSuccess: () => setStageDialogLead(null) }
+      );
+    },
+    [stageDialogLead, updateLeadById]
+  );
 
   const handleDeleteRequest = useCallback((lead: Lead) => {
     setLeadToDelete(lead);
@@ -347,10 +400,15 @@ export default function LeadsPage() {
         onSearchChange={setSearchInput}
         onFilterClick={() => setFilterDialogOpen(true)}
         sourceColors={sourceColors}
+        stageColors={stageColors}
         locale={organization?.locale}
         timeFormat={organization?.time_format}
         onRefresh={() => refetch()}
         isRefetching={isRefetching}
+        currentUserId={currentUserId}
+        onAssignClick={openAssignDialog}
+        onEditAssignees={openAssignDialog}
+        onChangeStage={(lead) => setStageDialogLead(lead)}
       />
 
       <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
@@ -427,6 +485,87 @@ export default function LeadsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={!!assignDialogLead} onOpenChange={(open) => !open && closeAssignDialog()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {assignDialogLead?.assignees?.length ? "Edit team members" : "Assign team members"}
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              {assignDialogLead
+                ? `Lead: ${[assignDialogLead.first_name, assignDialogLead.last_name].filter(Boolean).join(" ").trim() || "Unnamed"}`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {assignDialogLead && (
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <label className="text-muted-foreground text-sm font-medium">Team members</label>
+                <MultiSelectCombobox
+                  options={memberOptions}
+                  value={assignDialogSelectedIds}
+                  onValueChange={setAssignDialogSelectedIds}
+                  placeholder="Select members"
+                  emptyMessage="No members found."
+                  className="w-full"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={closeAssignDialog}>
+              Cancel
+            </Button>
+            <Button onClick={handleAssignSave} disabled={updateLeadById.isPending}>
+              {updateLeadById.isPending ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!stageDialogLead} onOpenChange={(open) => !open && setStageDialogLead(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Change stage</DialogTitle>
+            <DialogDescription className="sr-only">
+              {stageDialogLead
+                ? `Lead: ${[stageDialogLead.first_name, stageDialogLead.last_name].filter(Boolean).join(" ").trim() || "Unnamed"}`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {stageDialogLead && (
+            <>
+              <div className="space-y-4 py-2">
+                <div className="space-y-2">
+                  <label className="text-muted-foreground text-sm font-medium">Stage</label>
+                  <Select
+                    value={stageDialogLead.stage_id}
+                    onValueChange={handleStageChange}
+                    disabled={updateLeadById.isPending}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select stage" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {stageOptions.map((opt) => (
+                        <SelectItem key={opt.id} value={opt.id}>
+                          {opt.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setStageDialogLead(null)}>
+                  Cancel
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

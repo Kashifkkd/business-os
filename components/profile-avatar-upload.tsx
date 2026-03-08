@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, Eye, Trash2 } from "lucide-react";
+import { Camera, Eye, Loader2, Trash2 } from "lucide-react";
 import * as React from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -72,12 +72,18 @@ export function ProfileAvatarUpload({
           <AvatarImage src={avatarSrc ?? undefined} alt={displayName} />
           <AvatarFallback className="text-lg">{initials}</AvatarFallback>
         </Avatar>
-        <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-          <Camera className="size-6 text-white" />
-        </div>
+        {uploading ? (
+          <div className="absolute inset-0 flex items-center justify-center rounded-full bg-background/80 backdrop-blur-[1px]">
+            <Loader2 className="size-6 animate-spin text-muted-foreground" aria-hidden />
+          </div>
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+            <Camera className="size-6 text-white" />
+          </div>
+        )}
       </button>
 
-      <div className={cn("flex flex-col", compact ? "gap-1 sm:gap-1.5" : "gap-2 sm:gap-3")}>
+      <div className={cn("flex flex-col", compact ? "gap-1 sm:gap-1.5" : "gap-1.5 sm:gap-2")}>
         <div className="flex items-center gap-2">
           {hasImage && onViewImage && (
             <Button
@@ -104,8 +110,10 @@ export function ProfileAvatarUpload({
             </Button>
           )}
         </div>
-        <p className="text-muted-foreground text-xs">Max 5MB. (JPEG, PNG, WebP)</p>
-        <p className="text-muted-foreground text-xs">Click avatar to change photo</p>
+        <div className="flex flex-col gap-1">
+          <p className="text-muted-foreground text-xs">Max 5MB. (JPEG, PNG, WebP)</p>
+          <p className="text-muted-foreground text-xs">Click avatar to change photo</p>
+        </div>
       </div>
     </div>
   );

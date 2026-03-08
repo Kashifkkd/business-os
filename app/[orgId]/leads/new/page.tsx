@@ -19,12 +19,14 @@ export default function NewLeadPage() {
   const { data: stagesData } = useLeadStages(orgId);
   const sourceOptions = [
     { value: "", label: "Select source" },
-    ...(sourcesData?.sources ?? []).map((s) => ({
-      value: s.name,
-      label: s.name.replace(/_/g, " "),
-    })),
+    ...(sourcesData?.sources ?? [])
+      .filter((s) => s.id)
+      .map((s) => ({
+        value: s.id!,
+        label: (s.name ?? "").replace(/_/g, " "),
+      })),
   ];
-  const stageOptions = stagesData?.stages ?? [];
+  const stageOptions = useMemo(() => stagesData?.stages ?? [], [stagesData?.stages]);
   const defaultStageId = useMemo(
     () => stageOptions.find((s) => s.is_default)?.id ?? stageOptions[0]?.id ?? "",
     [stageOptions]
@@ -43,8 +45,9 @@ export default function NewLeadPage() {
         email: payload.email,
         phone: payload.phone,
         company_id: payload.company_id,
-        source: payload.source,
+        source_id: payload.source_id,
         stage_id: payload.stage_id,
+        job_title_id: payload.job_title_id,
         notes: payload.notes,
         metadata: payload.metadata,
         assignee_ids: payload.assignee_ids,

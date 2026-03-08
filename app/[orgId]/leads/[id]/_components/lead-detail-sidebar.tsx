@@ -16,12 +16,15 @@ type LeadDetailSidebarProps = {
   lead: Lead;
   sourceColors: Record<string, string>;
   onCopyEmail: () => void;
+  /** When set, assignees with this user_id are shown as "You". */
+  currentUserId?: string | null;
 };
 
 export function LeadDetailSidebar({
   lead,
   sourceColors,
   onCopyEmail,
+  currentUserId = null,
 }: LeadDetailSidebarProps) {
   return (
     <div className="flex flex-col gap-6 rounded-xl border border-border bg-card p-5 shadow-sm">
@@ -136,6 +139,9 @@ export function LeadDetailSidebar({
                   <DisplayName
                     key={a.user_id}
                     name={a.name ?? a.email ?? undefined}
+                    label={
+                      currentUserId && a.user_id === currentUserId ? "You" : undefined
+                    }
                     size="sm"
                   />
                 ))

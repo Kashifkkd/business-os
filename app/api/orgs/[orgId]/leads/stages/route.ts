@@ -23,7 +23,7 @@ export async function GET(
   const supabase = await createClient();
   const { data: rows, error } = await supabase
     .from("lead_stages")
-    .select("id, tenant_id, name, color, sort_order, is_default, created_at, updated_at")
+    .select("id, tenant_id, name, color, sort_order, is_default, created_at, updated_at, created_by")
     .eq("tenant_id", orgId)
     .order("sort_order", { ascending: true })
     .order("name", { ascending: true });
@@ -32,7 +32,19 @@ export async function GET(
     return NextResponse.json(apiError(API_ERROR_CODES.BAD_REQUEST, error.message), { status: 400 });
   }
 
-  const stages: LeadStageItem[] = (rows ?? []).map((r) => ({
+  const list = rows ?? [];
+  const creatorIds = [...new Set(list.map((r: { created_by?: string | null }) => r.created_by).filter(Boolean))] as string[];
+  const { data: profilesData } =
+    creatorIds.length > 0
+      ? await supabase.from("profiles").select("id, first_name, last_name, email").in("id", creatorIds)
+      : { data: [] };
+  const creatorNames: Record<string, string> = {};
+  (profilesData ?? []).forEach((p: { id: string; first_name: string | null; last_name: string | null; email: string | null }) => {
+    const name = [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || p.email || null;
+    creatorNames[p.id] = name ?? p.id;
+  });
+
+  const stages: LeadStageItem[] = list.map((r: { id: string; name: string; color: string; sort_order: number; is_default: boolean; created_at: string; updated_at: string; created_by?: string | null }) => ({
     id: r.id,
     name: String(r.name ?? "").trim(),
     color: normalizeStageColor(r.color),
@@ -40,6 +52,8 @@ export async function GET(
     is_default: !!r.is_default,
     created_at: r.created_at,
     updated_at: r.updated_at,
+    created_by: r.created_by ?? null,
+    created_by_name: r.created_by ? creatorNames[r.created_by] ?? null : null,
   }));
 
   return NextResponse.json(apiSuccess({ stages }));
@@ -114,6 +128,7 @@ export async function PATCH(
         color: s.color,
         sort_order: i,
         is_default: false,
+        created_by: user.id,
       });
       if (insertError) {
         return NextResponse.json(apiError(API_ERROR_CODES.BAD_REQUEST, insertError.message), { status: 400 });
@@ -136,9 +151,10 @@ export async function PATCH(
     await supabase.from("lead_stages").delete().in("id", toDelete).eq("tenant_id", orgId);
   }
 
+  const selectCols = "id, name, color, sort_order, is_default, created_at, updated_at, created_by";
   let { data: updated } = await supabase
     .from("lead_stages")
-    .select("id, name, color, sort_order, is_default, created_at, updated_at")
+    .select(selectCols)
     .eq("tenant_id", orgId)
     .order("sort_order", { ascending: true })
     .order("name", { ascending: true });
@@ -149,14 +165,26 @@ export async function PATCH(
     await supabase.from("lead_stages").update({ is_default: true }).eq("id", defaultId).eq("tenant_id", orgId);
     const { data: refreshed } = await supabase
       .from("lead_stages")
-      .select("id, name, color, sort_order, is_default, created_at, updated_at")
+      .select(selectCols)
       .eq("tenant_id", orgId)
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true });
     updated = refreshed ?? updated;
   }
 
-  const result: LeadStageItem[] = (updated ?? []).map((r) => ({
+  const updatedList = updated ?? [];
+  const resultCreatorIds = [...new Set(updatedList.map((r: { created_by?: string | null }) => r.created_by).filter(Boolean))] as string[];
+  const { data: resultProfiles } =
+    resultCreatorIds.length > 0
+      ? await supabase.from("profiles").select("id, first_name, last_name, email").in("id", resultCreatorIds)
+      : { data: [] };
+  const resultCreatorNames: Record<string, string> = {};
+  (resultProfiles ?? []).forEach((p: { id: string; first_name: string | null; last_name: string | null; email: string | null }) => {
+    const name = [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || p.email || null;
+    resultCreatorNames[p.id] = name ?? p.id;
+  });
+
+  const result: LeadStageItem[] = updatedList.map((r: { id: string; name: string; color: string; sort_order: number; is_default: boolean; created_at: string; updated_at: string; created_by?: string | null }) => ({
     id: r.id,
     name: String(r.name ?? "").trim(),
     color: normalizeStageColor(r.color),
@@ -164,6 +192,8 @@ export async function PATCH(
     is_default: !!r.is_default,
     created_at: r.created_at,
     updated_at: r.updated_at,
+    created_by: r.created_by ?? null,
+    created_by_name: r.created_by ? resultCreatorNames[r.created_by] ?? null : null,
   }));
 
   await createActivityLog(supabase, {

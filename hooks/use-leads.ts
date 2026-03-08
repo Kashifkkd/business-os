@@ -25,8 +25,9 @@ export type CreateLeadPayload = {
   email?: string | null;
   phone?: string | null;
   company_id?: string | null;
-  source?: string | null;
+  source_id?: string | null;
   stage_id?: string | null;
+  job_title_id?: string | null;
   notes?: string | null;
   metadata?: Record<string, unknown>;
   assignee_ids?: string[];
@@ -38,8 +39,9 @@ export type UpdateLeadPayload = Partial<{
   email: string | null;
   phone: string | null;
   company_id: string | null;
-  source: string | null;
+  source_id: string | null;
   stage_id: string;
+  job_title_id: string | null;
   notes: string | null;
   metadata: Record<string, unknown>;
   assignee_ids: string[];

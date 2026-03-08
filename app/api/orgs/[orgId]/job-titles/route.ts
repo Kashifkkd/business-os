@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { apiSuccess, apiError, API_ERROR_CODES } from "@/lib/api-response";
 import { getTenantById } from "@/lib/supabase/queries";
-import type { Company } from "@/lib/supabase/types";
+import type { JobTitle } from "@/lib/supabase/types";
 
-/** GET list of companies for the org (for combobox). */
+/** GET list of job titles for the org. */
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ orgId: string }> }
@@ -28,7 +28,7 @@ export async function GET(
   }
 
   const { data: rows, error } = await supabase
-    .from("companies")
+    .from("job_titles")
     .select("id, tenant_id, name, created_at, updated_at, created_by")
     .eq("tenant_id", orgId)
     .order("name", { ascending: true });
@@ -50,17 +50,14 @@ export async function GET(
     ])
   );
 
-  const { data: countRows } = await supabase
-    .from("leads")
-    .select("company_id")
-    .eq("tenant_id", orgId)
-    .not("company_id", "is", null);
-  const countByCompanyId: Record<string, number> = {};
-  (countRows ?? []).forEach((r: { company_id: string }) => {
-    if (r.company_id) countByCompanyId[r.company_id] = (countByCompanyId[r.company_id] ?? 0) + 1;
+  const { data: leadMetas } = await supabase.from("leads").select("metadata").eq("tenant_id", orgId);
+  const countByJobTitleName: Record<string, number> = {};
+  (leadMetas ?? []).forEach((r: { metadata?: { job_title?: string } | null }) => {
+    const jt = typeof r.metadata?.job_title === "string" ? r.metadata.job_title.trim() : "";
+    if (jt) countByJobTitleName[jt] = (countByJobTitleName[jt] ?? 0) + 1;
   });
 
-  const items: Company[] = list.map((r: { id: string; tenant_id: string; name: string; created_at: string; updated_at: string; created_by?: string | null }) => ({
+  const items: JobTitle[] = list.map((r: { id: string; tenant_id: string; name: string; created_at: string; updated_at: string; created_by?: string | null }) => ({
     id: r.id,
     tenant_id: r.tenant_id,
     name: r.name,
@@ -68,17 +65,15 @@ export async function GET(
     updated_at: r.updated_at,
     created_by: r.created_by ?? null,
     created_by_name: r.created_by ? profileMap.get(r.created_by) ?? null : null,
-    lead_count: countByCompanyId[r.id] ?? 0,
+    lead_count: countByJobTitleName[r.name] ?? 0,
   }));
 
-  return NextResponse.json(apiSuccess<Company[]>(items));
+  return NextResponse.json(apiSuccess<JobTitle[]>(items));
 }
 
-export type CreateCompanyBody = {
-  name: string;
-};
+export type CreateJobTitleBody = { name: string };
 
-/** POST create a company. */
+/** POST create a job title. */
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ orgId: string }> }
@@ -101,7 +96,7 @@ export async function POST(
     return NextResponse.json(apiError(API_ERROR_CODES.UNAUTHORIZED, "Unauthorized"), { status: 401 });
   }
 
-  let body: CreateCompanyBody;
+  let body: CreateJobTitleBody;
   try {
     body = await request.json();
   } catch {
@@ -110,21 +105,21 @@ export async function POST(
 
   const name = typeof body.name === "string" ? body.name.trim() : "";
   if (!name) {
-    return NextResponse.json(apiError(API_ERROR_CODES.VALIDATION_ERROR, "Company name is required"), { status: 400 });
+    return NextResponse.json(apiError(API_ERROR_CODES.VALIDATION_ERROR, "Job title name is required"), { status: 400 });
   }
 
   const { data: row, error } = await supabase
-    .from("companies")
+    .from("job_titles")
     .insert({ tenant_id: orgId, name, created_by: user.id })
     .select("id, tenant_id, name, created_at, updated_at, created_by")
     .single();
 
   if (error) {
     if (error.code === "23505") {
-      return NextResponse.json(apiError(API_ERROR_CODES.VALIDATION_ERROR, "A company with this name already exists"), { status: 400 });
+      return NextResponse.json(apiError(API_ERROR_CODES.VALIDATION_ERROR, "A job title with this name already exists"), { status: 400 });
     }
     return NextResponse.json(apiError(API_ERROR_CODES.BAD_REQUEST, error.message), { status: 400 });
   }
 
-  return NextResponse.json(apiSuccess(row as Company), { status: 201 });
+  return NextResponse.json(apiSuccess(row as JobTitle), { status: 201 });
 }

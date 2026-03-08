@@ -24,6 +24,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { useCompanies, useCreateCompany } from "@/hooks/use-companies";
+import { useJobTitles, useCreateJobTitle } from "@/hooks/use-job-titles";
 import { useOrganization } from "@/hooks/use-organization";
 import { getPersonDisplayName } from "@/lib/display-name";
 
@@ -34,9 +35,9 @@ const leadFormSchema = z.object({
   phone: z.string().trim(),
   company_id: z.string().trim(),
   assignee_ids: z.array(z.string()),
-  jobTitle: z.string().trim(),
+  job_title_id: z.string().trim(),
   website: z.string().trim(),
-  source: z.string().trim(),
+  source_id: z.string().trim(),
   stage_id: z.string().min(1, "Stage is required").trim(),
   notes: z.string().trim(),
 });
@@ -50,9 +51,9 @@ export const emptyLeadFormValues: LeadFormValues = {
   phone: "",
   company_id: "",
   assignee_ids: [],
-  jobTitle: "",
+  job_title_id: "",
   website: "https://",
-  source: "",
+  source_id: "",
   stage_id: "",
   notes: "",
 };
@@ -64,11 +65,12 @@ export function leadToFormValues(lead: {
   email: string | null;
   phone: string | null;
   company_id: string | null;
-  source: string | null;
+  source_id?: string | null;
   stage_id: string;
   notes: string | null;
   metadata?: Record<string, unknown>;
   assignee_ids?: string[];
+  job_title?: { id: string | null; name: string } | null;
 }): LeadFormValues {
   const meta = lead.metadata && typeof lead.metadata === "object" ? lead.metadata : {};
   const website = (meta.website as string)?.trim() ?? "";
@@ -79,9 +81,9 @@ export function leadToFormValues(lead: {
     phone: lead.phone ?? "",
     company_id: lead.company_id ?? "",
     assignee_ids: lead.assignee_ids ?? [],
-    jobTitle: (meta.job_title as string) ?? "",
+    job_title_id: lead.job_title?.id ?? "",
     website: website || "https://",
-    source: lead.source ?? "",
+    source_id: lead.source_id ?? "",
     stage_id: lead.stage_id ?? "",
     notes: lead.notes ?? "",
   };
@@ -100,14 +102,14 @@ export function leadFormValuesToPayload(values: LeadFormValues): {
   email: string | null;
   phone: string | null;
   company_id: string | null;
-  source: string | null;
+  source_id: string | null;
   stage_id: string;
+  job_title_id: string | null;
   notes: string | null;
   metadata?: Record<string, unknown>;
   assignee_ids: string[];
 } {
   const metadata: Record<string, unknown> = {};
-  if (values.jobTitle.trim()) metadata.job_title = values.jobTitle.trim();
   const website = normalizeWebsite(values.website);
   if (website) metadata.website = website;
   return {
@@ -116,8 +118,9 @@ export function leadFormValuesToPayload(values: LeadFormValues): {
     email: values.email.trim() || null,
     phone: values.phone.trim() || null,
     company_id: values.company_id.trim() || null,
-    source: values.source.trim() || null,
+    source_id: values.source_id.trim() || null,
     stage_id: values.stage_id.trim(),
+    job_title_id: values.job_title_id.trim() || null,
     notes: values.notes.trim() || null,
     metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
     assignee_ids: values.assignee_ids ?? [],
@@ -133,7 +136,7 @@ type LeadFormProps = {
   onSubmit: (values: LeadFormValues) => void;
   onCancel: () => void;
   isPending?: boolean;
-  /** Lead source options (from API). Used in combobox; include empty option for "Select source". */
+  /** Lead source options (from API): value = source id, label = source name. */
   sourceOptions?: SourceOption[];
   /** Lead stage options (from API). Required for stage dropdown. */
   stageOptions?: { id: string; name: string }[];
@@ -156,6 +159,8 @@ export function LeadForm({
 
   const { data: companies = [] } = useCompanies(orgId);
   const createCompany = useCreateCompany(orgId);
+  const { data: jobTitles = [] } = useJobTitles(orgId);
+  const createJobTitle = useCreateJobTitle(orgId);
   const { orgMembers: members = [] } = useOrganization(orgId);
 
   const companyOptions = [
@@ -166,6 +171,7 @@ export function LeadForm({
     value: m.user_id,
     label: getPersonDisplayName({ first_name: m.first_name, last_name: m.last_name, email: m.email }) ?? m.email ?? m.user_id,
   }));
+  const jobTitleOptions = jobTitles.map((j) => ({ value: j.id, label: j.name }));
 
   useEffect(() => {
     form.reset(initialValues);
@@ -184,21 +190,34 @@ export function LeadForm({
     );
   };
 
+  const handleAddJobTitle = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed || createJobTitle.isPending) return;
+    createJobTitle.mutate(
+      { name: trimmed },
+      {
+        onSuccess: (data) => {
+          form.setValue("job_title_id", data.id);
+        },
+      }
+    );
+  };
+
   return (
     <form
       onSubmit={form.handleSubmit(onSubmit)}
       className="flex h-full flex-1 flex-col"
     >
       <div className="flex-1 overflow-auto p-1">
-        <div className="grid grid-cols-1 gap-6 pb-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 pb-4 lg:grid-cols-2">
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-2">
               <CardTitle className="text-base">Contact information</CardTitle>
               <p className="text-muted-foreground text-sm font-normal">
                 Primary contact details for the lead.
               </p>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-2.5 pt-0">
               <Controller
                 name="first_name"
                 control={form.control}
@@ -309,17 +328,21 @@ export function LeadForm({
                 )}
               />
               <Controller
-                name="jobTitle"
+                name="job_title_id"
                 control={form.control}
                 render={({ field, fieldState }) => (
                   <Field data-invalid={fieldState.invalid}>
-                    <FieldLabel htmlFor="lead-form-job_title">Job title</FieldLabel>
-                    <Input
+                    <FieldLabel>Job title</FieldLabel>
+                    <SearchCombobox
+                      options={jobTitleOptions}
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      placeholder="Select or type job title"
+                      emptyMessage="No job titles. Type a name to add one."
+                      onAddNew={handleAddJobTitle}
+                      addNewLabel={(searchValue) => `Add "${searchValue}" job title`}
                       id="lead-form-job_title"
-                      placeholder="e.g. Marketing Manager"
                       className="w-full"
-                      aria-invalid={fieldState.invalid}
-                      {...field}
                     />
                     <FieldError errors={fieldState.error ? [fieldState.error] : undefined} />
                   </Field>
@@ -347,15 +370,15 @@ export function LeadForm({
           </Card>
 
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-2">
               <CardTitle className="text-base">Qualification & notes</CardTitle>
               <p className="text-muted-foreground text-sm font-normal">
                 Source, stage, and any notes.
               </p>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-2.5 pt-0">
               <Controller
-                name="source"
+                name="source_id"
                 control={form.control}
                 render={({ field, fieldState }) => (
                   <Field data-invalid={fieldState.invalid}>

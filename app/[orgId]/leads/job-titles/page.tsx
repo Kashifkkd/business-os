@@ -268,6 +268,7 @@ export default function LeadJobTitlesPage() {
                     <TableCell className="text-muted-foreground">
                       <DisplayName
                       name={jobTitle.created_by_name?.trim() || "—"}
+                      avatarUrl={jobTitle.created_by_avatar_url ?? undefined}
                       label={
                         currentUserId && jobTitle.created_by === currentUserId
                           ? "You"

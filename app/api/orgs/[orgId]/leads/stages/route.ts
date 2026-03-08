@@ -36,25 +36,29 @@ export async function GET(
   const creatorIds = [...new Set(list.map((r: { created_by?: string | null }) => r.created_by).filter(Boolean))] as string[];
   const { data: profilesData } =
     creatorIds.length > 0
-      ? await supabase.from("profiles").select("id, first_name, last_name, email").in("id", creatorIds)
+      ? await supabase.from("profiles").select("id, first_name, last_name, email, avatar_url").in("id", creatorIds)
       : { data: [] };
-  const creatorNames: Record<string, string> = {};
-  (profilesData ?? []).forEach((p: { id: string; first_name: string | null; last_name: string | null; email: string | null }) => {
+  const creatorMap: Record<string, { name: string; avatar_url: string | null }> = {};
+  (profilesData ?? []).forEach((p: { id: string; first_name: string | null; last_name: string | null; email: string | null; avatar_url?: string | null }) => {
     const name = [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || p.email || null;
-    creatorNames[p.id] = name ?? p.id;
+    creatorMap[p.id] = { name: name ?? p.id, avatar_url: p.avatar_url ?? null };
   });
 
-  const stages: LeadStageItem[] = list.map((r: { id: string; name: string; color: string; sort_order: number; is_default: boolean; created_at: string; updated_at: string; created_by?: string | null }) => ({
-    id: r.id,
-    name: String(r.name ?? "").trim(),
-    color: normalizeStageColor(r.color),
-    sort_order: r.sort_order,
-    is_default: !!r.is_default,
-    created_at: r.created_at,
-    updated_at: r.updated_at,
-    created_by: r.created_by ?? null,
-    created_by_name: r.created_by ? creatorNames[r.created_by] ?? null : null,
-  }));
+  const stages: LeadStageItem[] = list.map((r: { id: string; name: string; color: string; sort_order: number; is_default: boolean; created_at: string; updated_at: string; created_by?: string | null }) => {
+    const creator = r.created_by ? creatorMap[r.created_by] : null;
+    return {
+      id: r.id,
+      name: String(r.name ?? "").trim(),
+      color: normalizeStageColor(r.color),
+      sort_order: r.sort_order,
+      is_default: !!r.is_default,
+      created_at: r.created_at,
+      updated_at: r.updated_at,
+      created_by: r.created_by ?? null,
+      created_by_name: creator?.name ?? null,
+      created_by_avatar_url: creator?.avatar_url ?? null,
+    };
+  });
 
   return NextResponse.json(apiSuccess({ stages }));
 }
@@ -176,25 +180,29 @@ export async function PATCH(
   const resultCreatorIds = [...new Set(updatedList.map((r: { created_by?: string | null }) => r.created_by).filter(Boolean))] as string[];
   const { data: resultProfiles } =
     resultCreatorIds.length > 0
-      ? await supabase.from("profiles").select("id, first_name, last_name, email").in("id", resultCreatorIds)
+      ? await supabase.from("profiles").select("id, first_name, last_name, email, avatar_url").in("id", resultCreatorIds)
       : { data: [] };
-  const resultCreatorNames: Record<string, string> = {};
-  (resultProfiles ?? []).forEach((p: { id: string; first_name: string | null; last_name: string | null; email: string | null }) => {
+  const resultCreatorMap: Record<string, { name: string; avatar_url: string | null }> = {};
+  (resultProfiles ?? []).forEach((p: { id: string; first_name: string | null; last_name: string | null; email: string | null; avatar_url?: string | null }) => {
     const name = [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || p.email || null;
-    resultCreatorNames[p.id] = name ?? p.id;
+    resultCreatorMap[p.id] = { name: name ?? p.id, avatar_url: p.avatar_url ?? null };
   });
 
-  const result: LeadStageItem[] = updatedList.map((r: { id: string; name: string; color: string; sort_order: number; is_default: boolean; created_at: string; updated_at: string; created_by?: string | null }) => ({
-    id: r.id,
-    name: String(r.name ?? "").trim(),
-    color: normalizeStageColor(r.color),
-    sort_order: r.sort_order,
-    is_default: !!r.is_default,
-    created_at: r.created_at,
-    updated_at: r.updated_at,
-    created_by: r.created_by ?? null,
-    created_by_name: r.created_by ? resultCreatorNames[r.created_by] ?? null : null,
-  }));
+  const result: LeadStageItem[] = updatedList.map((r: { id: string; name: string; color: string; sort_order: number; is_default: boolean; created_at: string; updated_at: string; created_by?: string | null }) => {
+    const creator = r.created_by ? resultCreatorMap[r.created_by] : null;
+    return {
+      id: r.id,
+      name: String(r.name ?? "").trim(),
+      color: normalizeStageColor(r.color),
+      sort_order: r.sort_order,
+      is_default: !!r.is_default,
+      created_at: r.created_at,
+      updated_at: r.updated_at,
+      created_by: r.created_by ?? null,
+      created_by_name: creator?.name ?? null,
+      created_by_avatar_url: creator?.avatar_url ?? null,
+    };
+  });
 
   await createActivityLog(supabase, {
     tenantId: orgId,

@@ -119,7 +119,7 @@ export async function GET(
   const profileIds = [...new Set([...creatorIds, ...assigneeUserIds])];
   const { data: profilesData } =
     profileIds.length > 0
-      ? await supabase.from("profiles").select("id, first_name, last_name, email").in("id", profileIds)
+      ? await supabase.from("profiles").select("id, first_name, last_name, email, avatar_url").in("id", profileIds)
       : { data: [] };
 
   const stageById: Record<string, { id: string; name: string }> = {};
@@ -148,18 +148,21 @@ export async function GET(
     assigneesByLead[a.lead_id].push(a.user_id);
   });
   const profileMap = new Map(
-    (profilesData ?? []).map((p: { id: string; first_name: string | null; last_name: string | null; email: string | null }) => [
+    (profilesData ?? []).map((p: { id: string; first_name: string | null; last_name: string | null; email: string | null; avatar_url?: string | null }) => [
       p.id,
       {
         name: [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || p.email || null,
         email: p.email ?? null,
+        avatar_url: p.avatar_url ?? null,
       },
     ])
   );
   const creatorNames: Record<string, string> = {};
+  const creatorAvatarUrls: Record<string, string | null> = {};
   creatorIds.forEach((id) => {
     const p = profileMap.get(id);
     creatorNames[id] = p?.name ?? id;
+    creatorAvatarUrls[id] = p?.avatar_url ?? null;
   });
 
   const items: Lead[] = list.map((r) => {
@@ -185,6 +188,7 @@ export async function GET(
       company_name: r.company_id ? companyById[r.company_id]?.name ?? null : null,
       job_title: resolvedJobTitle,
       created_by_name: r.created_by ? creatorNames[r.created_by] ?? null : null,
+      created_by_avatar_url: r.created_by ? creatorAvatarUrls[r.created_by] ?? null : null,
       assignee_ids: assigneesByLead[r.id] ?? [],
       assignees: (assigneesByLead[r.id] ?? []).map((uid) => {
         const p = profileMap.get(uid);

@@ -500,7 +500,7 @@ export default function LeadsPage() {
           </DialogHeader>
           {assignDialogLead && (
             <div className="space-y-4 py-2">
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <label className="text-muted-foreground text-sm font-medium">Team members</label>
                 <MultiSelectCombobox
                   options={memberOptions}
@@ -537,14 +537,14 @@ export default function LeadsPage() {
           {stageDialogLead && (
             <>
               <div className="space-y-4 py-2">
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <label className="text-muted-foreground text-sm font-medium">Stage</label>
                   <Select
                     value={stageDialogLead.stage_id}
                     onValueChange={handleStageChange}
                     disabled={updateLeadById.isPending}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select stage" />
                     </SelectTrigger>
                     <SelectContent>

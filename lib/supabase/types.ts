@@ -460,6 +460,8 @@ export interface Company {
   created_by?: string | null;
   /** Resolved from profiles for display */
   created_by_name?: string | null;
+  /** Resolved from profiles for avatar image */
+  created_by_avatar_url?: string | null;
   /** Number of leads assigned to this company */
   lead_count?: number;
 }
@@ -474,6 +476,8 @@ export interface JobTitle {
   created_by?: string | null;
   /** Resolved from profiles for display */
   created_by_name?: string | null;
+  /** Resolved from profiles for avatar image */
+  created_by_avatar_url?: string | null;
   /** Number of leads with this job title (metadata.job_title) */
   lead_count?: number;
 }
@@ -516,6 +520,8 @@ export interface Lead {
   created_by?: string | null;
   /** Resolved from profiles for display */
   created_by_name?: string | null;
+  /** Resolved from profiles for avatar image */
+  created_by_avatar_url?: string | null;
   /** Assigned member user_ids; resolved to assignees (with name) for display */
   assignee_ids?: string[];
   assignees?: { user_id: string; name: string | null; email: string | null }[];

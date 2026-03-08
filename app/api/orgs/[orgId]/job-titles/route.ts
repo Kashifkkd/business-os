@@ -41,12 +41,15 @@ export async function GET(
   const creatorIds = [...new Set(list.map((r: { created_by?: string | null }) => r.created_by).filter(Boolean))] as string[];
   const { data: profilesData } =
     creatorIds.length > 0
-      ? await supabase.from("profiles").select("id, first_name, last_name, email").in("id", creatorIds)
+      ? await supabase.from("profiles").select("id, first_name, last_name, email, avatar_url").in("id", creatorIds)
       : { data: [] };
   const profileMap = new Map(
-    (profilesData ?? []).map((p: { id: string; first_name: string | null; last_name: string | null; email: string | null }) => [
+    (profilesData ?? []).map((p: { id: string; first_name: string | null; last_name: string | null; email: string | null; avatar_url?: string | null }) => [
       p.id,
-      [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || p.email || null,
+      {
+        name: [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || p.email || null,
+        avatar_url: p.avatar_url ?? null,
+      },
     ])
   );
 
@@ -57,16 +60,20 @@ export async function GET(
     if (jt) countByJobTitleName[jt] = (countByJobTitleName[jt] ?? 0) + 1;
   });
 
-  const items: JobTitle[] = list.map((r: { id: string; tenant_id: string; name: string; created_at: string; updated_at: string; created_by?: string | null }) => ({
-    id: r.id,
-    tenant_id: r.tenant_id,
-    name: r.name,
-    created_at: r.created_at,
-    updated_at: r.updated_at,
-    created_by: r.created_by ?? null,
-    created_by_name: r.created_by ? profileMap.get(r.created_by) ?? null : null,
-    lead_count: countByJobTitleName[r.name] ?? 0,
-  }));
+  const items: JobTitle[] = list.map((r: { id: string; tenant_id: string; name: string; created_at: string; updated_at: string; created_by?: string | null }) => {
+    const creator = r.created_by ? profileMap.get(r.created_by) : null;
+    return {
+      id: r.id,
+      tenant_id: r.tenant_id,
+      name: r.name,
+      created_at: r.created_at,
+      updated_at: r.updated_at,
+      created_by: r.created_by ?? null,
+      created_by_name: creator?.name ?? null,
+      created_by_avatar_url: creator?.avatar_url ?? null,
+      lead_count: countByJobTitleName[r.name] ?? 0,
+    };
+  });
 
   return NextResponse.json(apiSuccess<JobTitle[]>(items));
 }

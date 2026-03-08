@@ -329,6 +329,7 @@ export function LeadsTable({
         cell: ({ row }) => (
           <DisplayName
             name={row.original.created_by_name?.trim() || "—"}
+            avatarUrl={row.original.created_by_avatar_url ?? undefined}
             label={getCreatedByDisplayLabel(
               row.original.created_by,
               row.original.created_by_name,
@@ -374,7 +375,7 @@ export function LeadsTable({
                 <MoreVertical className="size-3" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="min-w-[220px]">
               <DropdownMenuItem asChild>
                 <Link href={`/${orgId}/leads/${row.original.id}`}>
                   <Eye className="size-3.5" />
@@ -382,7 +383,7 @@ export function LeadsTable({
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href={`/${orgId}/leads/${row.original.id}`}>
+                <Link href={`/${orgId}/leads/${row.original.id}/edit`}>
                   <Pencil className="size-3.5" />
                   Edit
                 </Link>

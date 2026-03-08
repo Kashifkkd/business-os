@@ -268,6 +268,7 @@ export default function LeadCompaniesPage() {
                     <TableCell className="text-muted-foreground">
                       <DisplayName
                       name={company.created_by_name?.trim() || "—"}
+                      avatarUrl={company.created_by_avatar_url ?? undefined}
                       label={
                         currentUserId && company.created_by === currentUserId
                           ? "You"

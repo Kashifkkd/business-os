@@ -146,6 +146,7 @@ function SortableStageRow({
       <TableCell className="text-muted-foreground w-[120px]">
         <DisplayName
           name={stage.created_by_name?.trim() || "—"}
+          avatarUrl={stage.created_by_avatar_url ?? undefined}
           label={
             currentUserId && stage.created_by === currentUserId
               ? "You"
@@ -239,6 +240,7 @@ export default function LeadStagesPage() {
     if (!trimmed || updateStages.isPending) return;
     if (stages.some((s) => s.name === trimmed)) return;
     const newStage: LeadStageItem = {
+      id: "", // New stage; server assigns id on insert
       name: trimmed,
       color: normalizeStageColor(color),
       sort_order: stages.length,

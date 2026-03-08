@@ -6,6 +6,8 @@ export type LeadStageItem = Pick<LeadStage, "id" | "name" | "color" | "sort_orde
   created_by?: string | null;
   /** Resolved from profiles for display */
   created_by_name?: string | null;
+  /** Resolved from profiles for avatar image */
+  created_by_avatar_url?: string | null;
 };
 
 export const DEFAULT_STAGE_COLOR = "#64748b";
